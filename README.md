@@ -26,8 +26,8 @@ pip install -e ".[dev]"   # + pytest
 
 | Phase | Deliverable | Status |
 |---|---|---|
-| 5a | Scaffold + tool suite + adapter skeleton (no LLM) | In progress |
-| 5b | Observer + Mediator + harness + full episode run | Pending |
+| 5a | Scaffold + tool suite + adapter skeleton (no LLM) | Done |
+| 5b | Observer + Mediator + harness + full episode run | Done |
 | 5c | Cross-episode knowledge persistence + `OptionSynthesiser` integration | Pending |
 | 6 | Competition dry run + open-source LLM swap | Pending |
 
@@ -39,6 +39,17 @@ These mirror the engine's [standing directives](https://github.com/khub-ai/cogni
 2. **Every phase advances debugging, problem-solving, and tool creation.** These three capabilities are the reason the system exists.
 3. **Cross-episode knowledge accumulation is first-class.** `PostMortem`, `Option`s, and `CachedSolution`s survive across games.
 4. **Never re-import the retired `ensemble.py` game-specific heuristics.** The replaced system accumulated per-game logic that bloated and stopped generalising; that path does not come back.
+
+## Running an episode
+
+```bash
+export ARC_API_KEY=...                # competition API key
+export ANTHROPIC_API_KEY=...          # only for --backend anthropic
+
+arc-agi-3 --game-id ls20                         # null backend (symbolic only)
+arc-agi-3 --game-id ls20 --backend anthropic     # Claude-backed Observer/Mediator
+arc-agi-3 --game-id ls20 --episodes 5            # cross-episode accumulation
+```
 
 ## Tests
 
