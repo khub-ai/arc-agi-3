@@ -1,0 +1,59 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name            = "arc-agi-3"
+version         = "0.1.0"
+description     = "ARC-AGI-3 domain adapter for the Cognitive OS Engine — ARC Prize 2026 submission scaffold."
+readme          = "README.md"
+license         = { text = "MIT-0" }
+requires-python = ">= 3.10"
+authors         = [{ name = "KHUB.AI" }]
+keywords        = ["arc-agi", "arc-prize", "cognitive-architecture", "symbolic-reasoning"]
+classifiers     = [
+    "License :: OSI Approved :: MIT No Attribution License (MIT-0)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # Engine — installed directly from its standalone MIT-0 repo until
+    # it is published to PyPI.  Phase 5a does not yet use LLM seams, so
+    # the Anthropic SDK is pulled in as an optional extra (see below).
+    "cognitive-os-engine @ git+https://github.com/khub-ai/cognitive-os-engine@main",
+    "arc-agi",
+    "numpy >= 1.24",
+]
+
+[project.optional-dependencies]
+# LLM seams (Observer + Mediator).  Phase 5b switches the default
+# Observer/Mediator backend from "unsupported" to Anthropic Claude.
+# The backend is abstracted behind a thin protocol so an open-source
+# LLM can be swapped in for competition submission.
+llm = [
+    "anthropic >= 0.25.0",
+]
+
+dev = [
+    "pytest >= 8",
+    "pytest-cov >= 5",
+]
+
+[project.scripts]
+arc-agi-3 = "arc_agi_3.harness:main"
+
+[project.urls]
+"Engine"     = "https://github.com/khub-ai/cognitive-os-engine"
+"ARC Prize"  = "https://arcprize.org/competitions/2026"
+
+[tool.setuptools.packages.find]
+include = ["arc_agi_3*"]
+
+[tool.pytest.ini_options]
+testpaths   = ["tests"]
+python_files = ["test_*.py"]
