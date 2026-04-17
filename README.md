@@ -28,7 +28,7 @@ pip install -e ".[dev]"   # + pytest
 |---|---|---|
 | 5a | Scaffold + tool suite + adapter skeleton (no LLM) | Done |
 | 5b | Observer + Mediator + harness + full episode run | Done |
-| 5c | Cross-episode knowledge persistence + `OptionSynthesiser` integration | Pending |
+| 5c | Cross-episode knowledge persistence (CachedSolutions) | Done |
 | 6 | Competition dry run + open-source LLM swap | Pending |
 
 ## Architecture invariants
@@ -46,9 +46,12 @@ These mirror the engine's [standing directives](https://github.com/khub-ai/cogni
 export ARC_API_KEY=...                # competition API key
 export ANTHROPIC_API_KEY=...          # only for --backend anthropic
 
-arc-agi-3 --game-id ls20                         # null backend (symbolic only)
-arc-agi-3 --game-id ls20 --backend anthropic     # Claude-backed Observer/Mediator
-arc-agi-3 --game-id ls20 --episodes 5            # cross-episode accumulation
+arc-agi-3 --game-id ls20                                   # null backend, ephemeral
+arc-agi-3 --game-id ls20 --backend anthropic               # Claude Observer/Mediator
+arc-agi-3 --game-id ls20 --episodes 5                      # intra-run accumulation
+arc-agi-3 --game-id ls20 --knowledge-dir ./store           # persist across invocations
+arc-agi-3 --game-id ls20 --knowledge-dir ./store \
+          --no-save-knowledge                              # read-only (competition)
 ```
 
 ## Tests

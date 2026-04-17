@@ -48,6 +48,7 @@ from cognitive_os import (
 
 from .adapter import ArcAdapter
 from .backends import AnthropicBackend, LLMBackend, NullBackend
+from .persistence import load_knowledge, save_knowledge
 
 
 _LOG = logging.getLogger("arc_agi_3.harness")
@@ -137,6 +138,9 @@ def run_harness(
     api_key:         Optional[str] = None,
     backend_api_key: Optional[str] = None,
     model:           Optional[str] = None,
+    knowledge_dir:   Optional[str] = None,
+    load_knowledge_: bool          = True,
+    save_knowledge_: bool          = True,
     arcade_factory:  Optional[ArcadeFactory] = None,
     cfg:             Optional[EngineConfig]  = None,
 ) -> HarnessResult:
@@ -171,6 +175,17 @@ def run_harness(
     ws = WorldState()
     cfg = cfg or EngineConfig.arc_agi3_default()
 
+    # Cross-invocation knowledge: load before the first episode runs
+    # so CachedSolutions are available to the planner from step 0.
+    # ``load_knowledge_`` being False is competition-safe — no prior
+    # knowledge leaks in.
+    if knowledge_dir and load_knowledge_:
+        report = load_knowledge(ws, knowledge_dir)
+        _LOG.info(
+            "loaded %d cached_solutions from %s",
+            report.cached_solutions, report.path,
+        )
+
     pms: List[PostMortem] = []
     started = time.time()
     for ep_idx in range(episodes):
@@ -189,6 +204,13 @@ def run_harness(
             episode_id, pm.final_status, pm.total_steps, pm.wall_time_seconds,
         )
     wall = time.time() - started
+
+    # Persist after all episodes so that lessons and CachedSolutions
+    # committed by each PostMortem are on disk for the next CLI run.
+    # Saving is opt-out to keep the default "training mode" loud about
+    # accumulation; competition runs pass ``save_knowledge_=False``.
+    if knowledge_dir and save_knowledge_:
+        save_knowledge(ws, knowledge_dir)
 
     return HarnessResult(game_id=game_id, episodes=pms, wall_time_s=wall)
 
@@ -242,6 +264,29 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--knowledge-dir", default=None,
+        help=(
+            "Directory used for cross-invocation knowledge persistence "
+            "(CachedSolutions etc.).  Loaded before the first episode "
+            "and saved after the last.  Omit for an ephemeral run."
+        ),
+    )
+    p.add_argument(
+        "--no-load-knowledge", action="store_true",
+        help=(
+            "Skip loading prior knowledge from --knowledge-dir.  Useful "
+            "for competition mode where prior solutions must not leak "
+            "into the run."
+        ),
+    )
+    p.add_argument(
+        "--no-save-knowledge", action="store_true",
+        help=(
+            "Skip saving knowledge to --knowledge-dir at the end of the "
+            "run.  Useful for read-only sweeps over a shared store."
+        ),
+    )
+    p.add_argument(
         "--log-level", default="INFO",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
         help="Python logging level (default: INFO).",
@@ -288,6 +333,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             api_key         = api_key,
             backend_api_key = backend_api_key,
             model           = args.model,
+            knowledge_dir   = args.knowledge_dir,
+            load_knowledge_ = not args.no_load_knowledge,
+            save_knowledge_ = not args.no_save_knowledge,
         )
     except Exception as exc:
         _LOG.exception("harness failed: %s", exc)
