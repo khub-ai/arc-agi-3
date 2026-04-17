@@ -181,7 +181,12 @@ class ChatBackend(LLMBackend):
         messages = prompt_for(query)
         import time
         t0 = time.perf_counter()
-        reply = self.chat(messages, max_tokens=600, temperature=0.0)
+        # 2000-token ceiling: STILL_SIMILAR / CLASSIFY / DESCRIBE are
+        # tiny; ENUMERATE_OBJECTS on a 60x60 grid can emit ~10+ objects
+        # × ~100 tokens each.  At 600 the reply truncates mid-object,
+        # breaking JSON parsing and silently installing zero claims
+        # (diagnosed in L1 loop attempt 1, 2026-04-17).
+        reply = self.chat(messages, max_tokens=2000, temperature=0.0)
         latency = (time.perf_counter() - t0) * 1000.0
         self.usage.observer_calls += 1
         self.usage.observer_latencies_ms.append(latency)
