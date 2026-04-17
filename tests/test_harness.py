@@ -231,6 +231,33 @@ def test_main_catches_unexpected_errors(monkeypatch: pytest.MonkeyPatch) -> None
 # ---------------------------------------------------------------------------
 
 
+def test_dry_run_reports_parity_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Dry-run against the fake arcade: must produce a report with
+    # every parity field populated.  This is the CI guard for the
+    # --dry-run code path; the true live probe lives in the
+    # user-invoked smoke script.
+    monkeypatch.setattr(harness, "_default_arcade_factory", _fake_factory)
+    report = harness.run_dry_run(game_id="ls20", max_steps=5)
+    for key in (
+        "game_id", "final_status", "total_steps", "wall_time_s",
+        "frame_shape", "state_name_first", "state_name_last",
+        "action_space_size", "entity_count", "hypothesis_count",
+        "surprise_count", "lesson_count",
+    ):
+        assert key in report
+    assert report["game_id"] == "ls20"
+    assert isinstance(report["frame_shape"], str)
+    assert report["action_space_size"] is None or report["action_space_size"] >= 0
+
+
+def test_main_dry_run_exits_zero_on_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(harness, "_default_arcade_factory", _fake_factory)
+    exit_code = harness.main([
+        "--game-id", "ls20", "--dry-run", "--log-level", "WARNING",
+    ])
+    assert exit_code == 0
+
+
 def test_print_summary_lists_each_episode() -> None:
     result = harness.run_harness(
         game_id        = "ls20",

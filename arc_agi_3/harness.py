@@ -37,7 +37,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from cognitive_os import (
     EngineConfig,
@@ -287,11 +287,93 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--dry-run", action="store_true",
+        help=(
+            "Live smoke test: run a single short episode (capped at "
+            "--max-steps, default 10 when --dry-run is set) and print "
+            "a parity report — frame shape, state transitions, action "
+            "space sizes, entity count, surprise count.  Intended as "
+            "the first thing to run after a new SDK release, to "
+            "confirm adapter / SDK shapes still agree.  Forces the "
+            "null backend (no LLM cost) regardless of --backend."
+        ),
+    )
+    p.add_argument(
         "--log-level", default="INFO",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
         help="Python logging level (default: INFO).",
     )
     return p
+
+
+def run_dry_run(
+    *,
+    game_id:        str,
+    max_steps:      int = 10,
+    api_key:        Optional[str] = None,
+    arcade_factory: Optional[ArcadeFactory] = None,
+) -> Dict[str, Any]:
+    """Bounded live smoke test — reset + N steps with NullBackend.
+
+    The report it returns is the parity receipt: ``frame_shape``,
+    ``state_name_first`` / ``state_name_last``, ``action_space_size``,
+    ``entity_count``, ``surprise_count``, ``final_status``.  The
+    point of this routine is *not* to score — it is to confirm that
+    every round-trip through the adapter (frame shape, state
+    normalisation, action translation) agrees with whatever the live
+    SDK is currently handing back.
+    """
+    factory = arcade_factory or _default_arcade_factory
+    arcade  = factory(api_key or "")
+    env     = arcade.make(game_id)
+    if env is None:
+        raise RuntimeError(
+            f"Arcade.make({game_id!r}) returned None; cannot dry-run."
+        )
+
+    adapter = ArcAdapter(raw_env=env, env_id=game_id, backend=NullBackend())
+    ws      = WorldState()
+    cfg     = EngineConfig.arc_agi3_default()
+
+    pm = run_episode(
+        adapter, ws, cfg,
+        episode_id = f"{game_id}::dry_run",
+        max_steps  = max_steps,
+    )
+
+    # Probe the first and last observations for parity diagnostics.
+    first = ws.observation_history[0] if ws.observation_history else None
+    last  = ws.observation_history[-1] if ws.observation_history else None
+
+    def _shape(obs: Any) -> str:
+        if obs is None or not obs.raw_frame:
+            return "(empty)"
+        rows = len(obs.raw_frame)
+        cols = len(obs.raw_frame[0]) if obs.raw_frame else 0
+        return f"{rows}x{cols}"
+
+    # ``action_space`` is pulled from the adapter rather than the
+    # Observation dataclass (which doesn't carry it) — this is the
+    # *current* live action space at the moment the dry-run ended.
+    try:
+        action_space_size: Optional[int] = len(adapter.action_space())
+    except Exception:
+        action_space_size = None
+
+    return {
+        "game_id":            game_id,
+        "final_status":       pm.final_status,
+        "total_steps":        pm.total_steps,
+        "wall_time_s":        round(pm.wall_time_seconds, 3),
+        "frame_shape":        _shape(first),
+        "state_name_first":   first.agent_state.get("state_name") if first else None,
+        "state_name_last":    last.agent_state.get("state_name")  if last  else None,
+        "action_space_size":  action_space_size,
+        "entity_count":       len(ws.entities),
+        "hypothesis_count":   len(ws.hypotheses),
+        "surprise_count":     len(pm.surprises),
+        "lesson_count":       len(pm.lessons),
+    }
 
 
 def _print_summary(result: HarnessResult, stream: Any = sys.stdout) -> None:
@@ -323,6 +405,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # programmatic callers can bypass them by passing explicit kwargs.
     api_key         = args.api_key         or os.environ.get("ARC_API_KEY")
     backend_api_key = args.backend_api_key or os.environ.get("ANTHROPIC_API_KEY")
+
+    if args.dry_run:
+        # Dry-run: bounded smoke test.  Cap at 10 steps by default
+        # (or whatever the user passed as --max-steps) to limit API
+        # cost when poking a new game.  Report as a single JSON-ish
+        # line so downstream tooling can scrape it.
+        max_steps = args.max_steps if args.max_steps != 10_000 else 10
+        try:
+            report = run_dry_run(
+                game_id   = args.game_id,
+                max_steps = max_steps,
+                api_key   = api_key,
+            )
+        except Exception as exc:
+            _LOG.exception("dry-run failed: %s", exc)
+            return 2
+        print(f"\n=== dry-run parity report ===")
+        for k, v in report.items():
+            print(f"  {k:20s} {v!r}")
+        return 0
 
     try:
         result = run_harness(

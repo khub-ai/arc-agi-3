@@ -29,7 +29,9 @@ pip install -e ".[dev]"   # + pytest
 | 5a | Scaffold + tool suite + adapter skeleton (no LLM) | Done |
 | 5b | Observer + Mediator + harness + full episode run | Done |
 | 5c | Cross-episode knowledge persistence (CachedSolutions) | Done |
-| 6 | Competition dry run + open-source LLM swap | Pending |
+| 6a | Live SDK parity (dry-run, real arc_agi types verified) | Done |
+| 6b | Open-source LLM backend | Pending |
+| 6c | Competition dry run | Pending |
 
 ## Architecture invariants
 
@@ -46,6 +48,7 @@ These mirror the engine's [standing directives](https://github.com/khub-ai/cogni
 export ARC_API_KEY=...                # competition API key
 export ANTHROPIC_API_KEY=...          # only for --backend anthropic
 
+arc-agi-3 --game-id ls20 --dry-run                         # 10-step live parity check
 arc-agi-3 --game-id ls20                                   # null backend, ephemeral
 arc-agi-3 --game-id ls20 --backend anthropic               # Claude Observer/Mediator
 arc-agi-3 --game-id ls20 --episodes 5                      # intra-run accumulation
@@ -53,6 +56,12 @@ arc-agi-3 --game-id ls20 --knowledge-dir ./store           # persist across invo
 arc-agi-3 --game-id ls20 --knowledge-dir ./store \
           --no-save-knowledge                              # read-only (competition)
 ```
+
+The `--dry-run` flag runs a bounded 10-step episode with `NullBackend`
+(zero LLM cost) and prints a parity report — frame shape, state-name
+transitions, action space size, entity / hypothesis / surprise
+counts.  Run it first after any SDK upgrade to confirm adapter
+shapes still agree with whatever the live API hands back.
 
 ## Tests
 

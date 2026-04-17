@@ -68,6 +68,73 @@ from .tools.registry import build_registry, dispatch
 _EPISODE_GOAL_ID = "episode"
 
 
+def _to_list_2d(frame: Any) -> Any:
+    """Normalise a raw game frame into a plain ``list[list[int]]``.
+
+    The ARC-AGI-3 SDK returns frames in multiple shapes depending on
+    version and game: ``list[list[int]]``, 2-D ``numpy.ndarray``,
+    ``list[numpy.ndarray]`` (one element per viewport), and
+    occasionally deeper nesting.  This helper canonicalises all of
+    them so the engine's perception layer only ever sees a 2-D list
+    of ints.
+
+    Ported from the proven parity logic in the predecessor adapter
+    (khub-knowledge-fabric .private/usecases/arc-agi-3/agents.py
+    ``_to_list_2d``).  Kept in the adapter (rather than perception)
+    because it is an SDK-shape concern, not a pixel-semantics one.
+    """
+    # Numpy array (or anything ndarray-like): .tolist() handles any
+    # dimensionality in a single shot.
+    if hasattr(frame, "tolist"):
+        result = frame.tolist()
+        if isinstance(result, list) and result and isinstance(result[0], list):
+            return result
+        return result if isinstance(result, list) else []
+
+    if not isinstance(frame, list) or not frame:
+        return [] if frame in (None, []) else frame
+
+    first = frame[0]
+
+    # Outer wrapper with a numpy array inside (the live-SDK shape).
+    if hasattr(first, "tolist"):
+        inner = first.tolist()
+        if isinstance(inner, list) and inner and isinstance(inner[0], list):
+            return inner
+        return inner if isinstance(inner, list) else []
+
+    # Already flat list-of-lists (rows of ints): pass through.
+    if isinstance(first, list) and first and not isinstance(first[0], list):
+        return frame
+
+    # Deeper nesting (3-D list-of-list-of-list): recurse one level.
+    inner = _to_list_2d(first)
+    return inner if inner else frame
+
+
+def _normalise_state_name(raw_state: Any) -> str:
+    """Coerce the SDK's ``state`` field to a plain string.
+
+    The live ARC-AGI-3 SDK returns a ``GameState`` StrEnum; equality
+    against ``"WIN"`` etc. already works (StrEnum hashes identically
+    to its string value), but ``str(GameState.WIN)`` surprisingly
+    yields ``"GameState.WIN"`` rather than ``"WIN"``.  Callers that
+    pass the state name through ``str()`` (logs, JSON dumps of
+    ``agent_state``) would see the ugly form.  Flatten here so every
+    downstream consumer sees the plain value.
+
+    Uses ``.name`` (per the predecessor adapter's proven parity
+    logic) — works uniformly for every ``Enum`` subclass, not only
+    ``StrEnum`` where ``.value`` happens to be a string.
+    """
+    if raw_state is None:
+        return "UNKNOWN"
+    name = getattr(raw_state, "name", None)
+    if isinstance(name, str):
+        return name
+    return str(raw_state)
+
+
 @dataclass
 class _ReplayEnv:
     """Fake env that feeds a pre-recorded frame sequence.
@@ -316,13 +383,8 @@ class ArcAdapter(Adapter):
         return list(getattr(self._env, "action_space", []))
 
     def _observe_from(self, raw: Any) -> Observation:
-        frame             = getattr(raw, "frame", None)
-        if isinstance(frame, list) and frame and isinstance(frame[0], list) and frame and isinstance(frame[0][0], list):
-            # Some SDK versions wrap the grid in an outer list (one
-            # canvas per player / viewport).  We consume only the
-            # primary canvas.
-            frame = frame[0]
-        state_name       = getattr(raw, "state", "PLAYING")
+        frame             = _to_list_2d(getattr(raw, "frame", None))
+        state_name       = _normalise_state_name(getattr(raw, "state", "PLAYING"))
         levels_completed = getattr(raw, "levels_completed", 0)
         obs = build_observation(
             frame            = frame or [[0]],

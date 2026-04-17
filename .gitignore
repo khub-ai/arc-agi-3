@@ -48,3 +48,8 @@ api_keys.env
 # Recorded play sessions — large, regenerable
 playlogs/
 recordings/
+
+# ARC-AGI-3 SDK side effects — the SDK downloads game binaries into
+# ./environment_files/ on first Arcade.make() call.  Regenerated
+# on demand from the API; never belongs in version control.
+environment_files/
