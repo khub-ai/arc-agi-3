@@ -154,9 +154,15 @@ def _body_enumerate_objects(query: ObserverQuery) -> str:
             "target, hazard, resource, counter, decor — pick the most "
             "specific that fits), "
             "\"description\" (up to 60 characters summarising shape "
-            "and colour).  Optional fields: \"colour\" (palette name "
-            "or index), \"shape\" (e.g. \"L\", \"square\", "
-            "\"line\")."
+            "and colour), "
+            "\"bbox\" (a 4-element [x_min, y_min, x_max, y_max] "
+            "array of integer pixel coordinates, INCLUSIVE on both "
+            "ends — this lets the engine match your object against "
+            "its own segmentation unambiguously), "
+            "\"colour\" (the single most representative palette "
+            "index as an integer 0-15; if multiple colours are "
+            "present pick the dominant one).  Optional fields: "
+            "\"shape\" (e.g. \"L\", \"square\", \"line\")."
         ),
         "confidence":  "float in [0,1] — your overall confidence in the list",
         "explanation": "short string; what salient pattern the scene shows",
