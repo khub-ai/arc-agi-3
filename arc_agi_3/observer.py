@@ -74,6 +74,8 @@ def prompt_for(query: ObserverQuery) -> List[ChatMessage]:
         body = _body_classify(query)
     elif query.question == QuestionType.DESCRIBE:
         body = _body_describe(query)
+    elif query.question == QuestionType.ENUMERATE_OBJECTS:
+        body = _body_enumerate_objects(query)
     else:
         # COMPARE and STRUCTURE_MAP land here in Phase 5b-i.
         body = _body_unsupported(query)
@@ -130,6 +132,49 @@ def _body_describe(query: ObserverQuery) -> str:
             "confidence":  "float in [0,1]",
             "explanation": "string; reasoning if relevant, otherwise empty",
         },
+        query        = query,
+    )
+
+
+def _body_enumerate_objects(query: ObserverQuery) -> str:
+    """Initial-frame scan.
+
+    The engine's :class:`InitialFrameScanTrigger` dispatches this
+    question once per level.  We ask for a list of objects with
+    enough structure that the engine's handler can install typed
+    ``PropertyClaim`` hypotheses directly — no free-text parsing
+    required on the hot path.
+    """
+    reply_schema = {
+        "result":      (
+            "array of objects.  Each object MUST have fields: "
+            "\"position\" (a 2-element [x, y] array of integer pixel "
+            "coordinates, column then row, origin top-left), "
+            "\"role\" (short lowercase noun phrase — agent, wall, "
+            "target, hazard, resource, counter, decor — pick the most "
+            "specific that fits), "
+            "\"description\" (up to 60 characters summarising shape "
+            "and colour).  Optional fields: \"colour\" (palette name "
+            "or index), \"shape\" (e.g. \"L\", \"square\", "
+            "\"line\")."
+        ),
+        "confidence":  "float in [0,1] — your overall confidence in the list",
+        "explanation": "short string; what salient pattern the scene shows",
+    }
+    description = (
+        "Enumerate every distinct visible object in the frame.  The "
+        "frame is a 2-D integer grid; each cell is a palette colour "
+        "index.  Objects are contiguous regions of non-background "
+        "colour (background is usually 0).  Report estimated "
+        "pixel-coordinate positions in frame space — a cell at row "
+        "r, column c maps to pixel (c*cell_size, r*cell_size) if the "
+        "grid is integer-addressed.  When in doubt prefer lower "
+        "confidence over inventing objects."
+    )
+    return _compose_body(
+        question     = "ENUMERATE_OBJECTS",
+        description  = description,
+        reply_schema = reply_schema,
         query        = query,
     )
 
@@ -245,6 +290,22 @@ def parse_answer(query: ObserverQuery, reply: str) -> ObserverAnswer:
     elif query.question == QuestionType.DESCRIBE:
         if not isinstance(result, str):
             result = str(result) if result is not None else ""
+    elif query.question == QuestionType.ENUMERATE_OBJECTS:
+        # Accept two shapes: a bare list of object dicts, or a dict
+        # with a top-level ``objects``/``entities`` field that the
+        # engine's handler also knows to unwrap.  If neither works,
+        # drop confidence to 0.1 so the engine doesn't integrate a
+        # non-list into the hypothesis store.
+        if isinstance(result, list):
+            result = [x for x in result if isinstance(x, dict)]
+        elif isinstance(result, dict) and any(
+            isinstance(result.get(k), list) for k in ("objects", "entities", "items")
+        ):
+            # Leave as-is — engine-side _coerce_object_list unwraps.
+            pass
+        else:
+            result = []
+            confidence = min(confidence, 0.1)
     else:
         # Unsupported question types always degrade to zero-confidence.
         confidence = 0.0

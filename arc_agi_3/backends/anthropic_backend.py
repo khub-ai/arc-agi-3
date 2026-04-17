@@ -18,7 +18,12 @@ from typing import List, Optional
 from .base import ChatBackend, ChatMessage
 
 
-_DEFAULT_MODEL = "claude-3-5-sonnet-latest"
+# Default model identifier.  We pin to a known-stable Sonnet 4.5
+# string rather than a moving "-latest" alias so a silent Anthropic
+# model rotation can never change our behaviour between CI and live
+# runs.  Override per-invocation with ``--model`` when you want to
+# benchmark a newer tier (e.g. ``--model claude-sonnet-4-6``).
+_DEFAULT_MODEL = "claude-sonnet-4-5"
 _API_KEY_ENV   = "ANTHROPIC_API_KEY"
 
 
