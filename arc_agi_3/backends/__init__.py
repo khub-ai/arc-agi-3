@@ -23,6 +23,7 @@ prompt / parse machinery in :mod:`arc_agi_3.observer` and
 """
 
 from .base import ChatBackend, LLMBackend
+from .cached import CachedChatBackend, CacheStats, key_for, canonicalise_call
 from .mock import MockBackend
 from .null import NullBackend
 
@@ -31,6 +32,10 @@ __all__ = [
     "ChatBackend",
     "NullBackend",
     "MockBackend",
+    "CachedChatBackend",
+    "CacheStats",
+    "key_for",
+    "canonicalise_call",
 ]
 
 # AnthropicBackend is imported lazily so that environments without the
