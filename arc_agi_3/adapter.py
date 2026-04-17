@@ -56,6 +56,7 @@ from .action_mapping import (
     engine_action_space,
     native_action_for,
 )
+from .backends import LLMBackend, NullBackend
 from .perception import PerceptionState, build_observation
 from .tools.registry import build_registry, dispatch
 
@@ -149,6 +150,7 @@ class ArcAdapter(Adapter):
         env_id:            str,
         *,
         background_colour: int = 0,
+        backend:           Optional[LLMBackend] = None,
     ) -> None:
         self.env_id        = env_id
         self._env          = raw_env
@@ -157,6 +159,10 @@ class ArcAdapter(Adapter):
         self._handlers:    Dict[str, Any] = {}
         self._last_frame:  Optional[_FrameObj] = None
         self._current_step = 0
+        # Backend defaults to NullBackend: observer / mediator queries
+        # return zero-confidence, matching the engine's "no oracle
+        # configured" convention.  Tests and Phase-5a paths use this.
+        self.backend: LLMBackend = backend if backend is not None else NullBackend()
 
     # ------------------------------------------------------------------
     # Alternate constructor for tests
@@ -172,6 +178,7 @@ class ArcAdapter(Adapter):
         *,
         env_id:            str = "replay",
         background_colour: int = 0,
+        backend:           Optional[LLMBackend] = None,
     ) -> "ArcAdapter":
         if not (len(frames) == len(states) == len(levels_completed) == len(available_actions)):
             raise ValueError("replay arrays must be same length")
@@ -181,7 +188,12 @@ class ArcAdapter(Adapter):
             levels            = list(levels_completed),
             available_actions = [list(a) for a in available_actions],
         )
-        return cls(raw_env=env, env_id=env_id, background_colour=background_colour)
+        return cls(
+            raw_env           = env,
+            env_id            = env_id,
+            background_colour = background_colour,
+            backend           = backend,
+        )
 
     # ------------------------------------------------------------------
     # Adapter ABC — lifecycle
@@ -222,6 +234,11 @@ class ArcAdapter(Adapter):
 
     def reset(self) -> Observation:
         self._perception.reset_for_new_episode()
+        # Per-episode budget and usage counters reset on every reset.
+        # The engine's ResourceTracker (when it lands) will enforce
+        # the budget at a higher level; the backend enforces it per
+        # call regardless.
+        self.backend.reset_usage()
         raw = self._env.reset()
         self._last_frame = raw
         return self._observe_from(raw)
@@ -262,17 +279,19 @@ class ArcAdapter(Adapter):
     # ------------------------------------------------------------------
 
     def observer_query(self, query: ObserverQuery) -> ObserverAnswer:
-        """Phase 5a: no Observer backend is bound yet.  The default
-        in the engine returns a zero-confidence answer, which is the
-        correct signal for the engine to proceed symbolically.  Phase
-        5b replaces this with a VLM-backed implementation.
+        """Delegate to :attr:`backend`.  The default :class:`NullBackend`
+        returns zero confidence; an :class:`AnthropicBackend` (or any
+        other :class:`LLMBackend`) invokes the underlying LLM.  Budget
+        exhaustion is surfaced by the backend as a zero-confidence
+        answer with a clear explanation; the engine treats that the
+        same as "oracle unavailable" and proceeds symbolically.
         """
-        return super().observer_query(query)
+        return self.backend.answer_observer_query(query)
 
     def mediator_query(self, query: MediatorQuery) -> MediatorAnswer:
-        """Phase 5a: no Mediator backend is bound yet.  See
-        :meth:`observer_query`."""
-        return super().mediator_query(query)
+        """Delegate to :attr:`backend`.  See :meth:`observer_query` for
+        the backend semantics."""
+        return self.backend.answer_mediator_query(query)
 
     # ------------------------------------------------------------------
     # Adapter ABC — tool dispatch
