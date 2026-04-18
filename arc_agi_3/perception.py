@@ -246,22 +246,39 @@ def build_observation(
 
         # Pair same-colour disappear+appear with overlapping bboxes.
         # Each old entity may match at most one new entity (greedy).
+        #
+        # Size gate: only emit for small regions (max dimension ≤
+        # ``MAX_GLYPH_DIM``).  This filters out false positives on
+        # large background regions whose internal connected-component
+        # shape changes every frame because an agent pixel moves
+        # through them — those are "agent translation" events, not
+        # glyph rotations.  A glyph rotation keeps the whole mutated
+        # area compact.
         for colour in set(gone.keys()) & set(came.keys()):
             matched_new: set = set()
             for old_id, old_bbox in gone[colour]:
                 for new_id, new_bbox in came[colour]:
                     if new_id in matched_new:
                         continue
-                    if _bboxes_overlap(old_bbox, new_bbox):
-                        events.append(EntityVisualPatternChanged(
-                            step             = current_step,
-                            entity_id_before = old_id,
-                            entity_id_after  = new_id,
-                            colour           = colour,
-                            bbox             = _bbox_union(old_bbox, new_bbox),
-                        ))
-                        matched_new.add(new_id)
-                        break  # each old entity matches at most one new
+                    if not _bboxes_overlap(old_bbox, new_bbox):
+                        continue
+                    ubbox = _bbox_union(old_bbox, new_bbox)
+                    uh = ubbox[2] - ubbox[0] + 1
+                    uw = ubbox[3] - ubbox[1] + 1
+                    if max(uh, uw) > MAX_GLYPH_DIM:
+                        # Too big to be a glyph — probably a
+                        # background region whose shape shifted
+                        # because something moved through it.
+                        continue
+                    events.append(EntityVisualPatternChanged(
+                        step             = current_step,
+                        entity_id_before = old_id,
+                        entity_id_after  = new_id,
+                        colour           = colour,
+                        bbox             = ubbox,
+                    ))
+                    matched_new.add(new_id)
+                    break  # each old entity matches at most one new
 
     # -- Commit state for next step ----------------------------------
     state.prev_frame             = _freeze(frame)
@@ -304,6 +321,16 @@ def build_observation(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+# Maximum bbox dimension (height or width, in pixels) for a region
+# to be considered a "glyph" for in-place visual-mutation detection.
+# Regions larger than this are treated as structural / background
+# when their internal shape churns; we suppress their
+# ``EntityVisualPatternChanged`` events to avoid flooding the
+# visual-orientation triggers with spurious mutations caused by
+# agent movement through same-colour background.
+MAX_GLYPH_DIM: int = 20
 
 
 def _bboxes_overlap(
