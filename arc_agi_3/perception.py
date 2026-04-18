@@ -38,6 +38,7 @@ from cognitive_os import (
     EntityAppeared,
     EntityDisappeared,
     EntityStateChanged,
+    EntityVisualPatternChanged,
     Event,
     GoalConditionMet,
     Observation,
@@ -206,6 +207,62 @@ def build_observation(
                 actual   = f"{len(raw_changes)} cells changed without full motion match",
             ))
 
+    # -- In-place visual mutation detection --------------------------
+    # Emit EntityVisualPatternChanged when a same-colour entity
+    # disappears and a new same-colour entity appears with an
+    # overlapping bounding box in the SAME step — the signature of a
+    # glyph rotation or in-place colour-pattern change.
+    #
+    # We need the bboxes of the PREVIOUS frame's regions, so we
+    # build that map here (only when the previous frame exists and
+    # the current frame has changed).
+    if state.prev_frame is not None and not is_identical(state.prev_frame, frame):
+        prev_key_to_region: Dict[Tuple[int, Tuple[Tuple[int, int], ...]], Region] = {
+            _key_for(reg): reg
+            for reg in extract_regions(state.prev_frame, background=background)
+        }
+
+        # Disappeared entities: key was in previous frame but not current.
+        # Map colour → [(entity_id, bbox)] for disappeared entities.
+        gone: Dict[Any, List[Tuple[str, Tuple[int, int, int, int]]]] = {}
+        for old_key, old_id in state.entity_ids_by_key.items():
+            if old_key in key_to_region:
+                continue  # still present — not disappeared
+            old_reg = prev_key_to_region.get(old_key)
+            if old_reg is None:
+                continue
+            gone.setdefault(old_key[0], []).append((old_id, old_reg.bbox))
+
+        # Appeared entities: key is in current frame but was not in previous.
+        # Map colour → [(entity_id, bbox)] for newly-appeared entities.
+        came: Dict[Any, List[Tuple[str, Tuple[int, int, int, int]]]] = {}
+        for key, reg in key_to_region.items():
+            if key in state.entity_ids_by_key:
+                continue  # was already present — not newly appeared
+            new_id = new_entity_ids_by_key.get(key)
+            if new_id is None:
+                continue
+            came.setdefault(key[0], []).append((new_id, reg.bbox))
+
+        # Pair same-colour disappear+appear with overlapping bboxes.
+        # Each old entity may match at most one new entity (greedy).
+        for colour in set(gone.keys()) & set(came.keys()):
+            matched_new: set = set()
+            for old_id, old_bbox in gone[colour]:
+                for new_id, new_bbox in came[colour]:
+                    if new_id in matched_new:
+                        continue
+                    if _bboxes_overlap(old_bbox, new_bbox):
+                        events.append(EntityVisualPatternChanged(
+                            step             = current_step,
+                            entity_id_before = old_id,
+                            entity_id_after  = new_id,
+                            colour           = colour,
+                            bbox             = _bbox_union(old_bbox, new_bbox),
+                        ))
+                        matched_new.add(new_id)
+                        break  # each old entity matches at most one new
+
     # -- Commit state for next step ----------------------------------
     state.prev_frame             = _freeze(frame)
     state.entity_ids_by_key      = new_entity_ids_by_key
@@ -247,6 +304,25 @@ def build_observation(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _bboxes_overlap(
+    a: Tuple[int, int, int, int],
+    b: Tuple[int, int, int, int],
+) -> bool:
+    """True iff two ``(r_min, c_min, r_max, c_max)`` bounding boxes overlap."""
+    r_min_a, c_min_a, r_max_a, c_max_a = a
+    r_min_b, c_min_b, r_max_b, c_max_b = b
+    return (r_min_a <= r_max_b and r_max_a >= r_min_b and
+            c_min_a <= c_max_b and c_max_a >= c_min_b)
+
+
+def _bbox_union(
+    a: Tuple[int, int, int, int],
+    b: Tuple[int, int, int, int],
+) -> Tuple[int, int, int, int]:
+    """Return the smallest bbox enclosing both ``a`` and ``b``."""
+    return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
 
 
 def _key_for(region: Region) -> Tuple[int, Tuple[Tuple[int, int], ...]]:

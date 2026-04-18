@@ -76,6 +76,8 @@ def prompt_for(query: ObserverQuery) -> List[ChatMessage]:
         body = _body_describe(query)
     elif query.question == QuestionType.ENUMERATE_OBJECTS:
         body = _body_enumerate_objects(query)
+    elif query.question == QuestionType.COMPARE_VISUAL_STATES:
+        body = _body_compare_visual_states(query)
     else:
         # COMPARE and STRUCTURE_MAP land here in Phase 5b-i.
         body = _body_unsupported(query)
@@ -182,6 +184,51 @@ def _body_enumerate_objects(query: ObserverQuery) -> str:
         description  = description,
         reply_schema = reply_schema,
         query        = query,
+    )
+
+
+def _body_compare_visual_states(query: ObserverQuery) -> str:
+    """Prompt for COMPARE_VISUAL_STATES.
+
+    The engine passes exactly two entity IDs in ``query.targets`` and a
+    frame that shows both entities.  We ask the Observer to compare their
+    internal glyph / pattern:
+
+    1. Do they contain the *same type* of glyph?
+    2. If yes: are they in the *same orientation*?
+
+    The reply drives :class:`cognitive_os.oracle.VisualOrientationTrigger`
+    which seeds a goal to fix the orientation when it is wrong.
+    """
+    return _compose_body(
+        question="COMPARE_VISUAL_STATES",
+        description=(
+            "You are given a 2-D integer grid (palette colours 0-15) "
+            "containing two distinct entity regions identified by the "
+            "TARGET_ENTITY_IDS below.  Your task is to compare the "
+            "INTERNAL visual pattern (glyph, shape, marking) inside each "
+            "entity's bounding box.\n\n"
+            "Answer two yes/no questions:\n"
+            "  same_glyph: Are the two internal patterns the SAME type of "
+            "glyph (same shape class, same stroke layout), even if rotated "
+            "or reflected?  Answer true if they look like two instances of "
+            "the same pictogram; false if they are visually unrelated.\n"
+            "  orientation_match: Only if same_glyph=true — are the two "
+            "glyphs in EXACTLY THE SAME orientation (same rotation, NOT "
+            "mirrored)?  If same_glyph=false, set this to false as well.\n\n"
+            "Be conservative: if the patterns are too small or ambiguous to "
+            "tell, report same_glyph=false and confidence < 0.3."
+        ),
+        reply_schema={
+            "result": (
+                "object with exactly two boolean fields: "
+                "\"same_glyph\" (true iff both regions contain the same glyph type), "
+                "\"orientation_match\" (true iff same_glyph AND orientations identical)"
+            ),
+            "confidence": "float in [0,1] — overall confidence in your comparison",
+            "explanation": "short string; describe what you see in each region",
+        },
+        query=query,
     )
 
 
@@ -311,6 +358,28 @@ def parse_answer(query: ObserverQuery, reply: str) -> ObserverAnswer:
             pass
         else:
             result = []
+            confidence = min(confidence, 0.1)
+    elif query.question == QuestionType.COMPARE_VISUAL_STATES:
+        # Expect {"same_glyph": bool, "orientation_match": bool}.
+        # Normalise: accept string "true"/"false", default missing keys
+        # to False so the handler never sees None booleans.
+        if isinstance(result, dict):
+            def _to_bool(v: Any) -> bool:
+                if isinstance(v, bool):
+                    return v
+                if isinstance(v, str):
+                    return v.strip().lower() in ("true", "yes", "1")
+                try:
+                    return bool(int(v))
+                except (TypeError, ValueError):
+                    return False
+            result = {
+                "same_glyph":        _to_bool(result.get("same_glyph", False)),
+                "orientation_match": _to_bool(result.get("orientation_match", False)),
+            }
+        else:
+            # Unusable shape → zero confidence, safe default result.
+            result = {"same_glyph": False, "orientation_match": False}
             confidence = min(confidence, 0.1)
     else:
         # Unsupported question types always degrade to zero-confidence.
