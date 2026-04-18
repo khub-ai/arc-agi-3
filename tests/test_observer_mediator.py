@@ -24,14 +24,21 @@ import json
 from typing import List
 
 from cognitive_os import (
+    AtPosition,
+    CausalClaim,
+    EntityInState,
+    Goal,
+    GoalNode,
     LLMBudget,
     MediatorAnswer,
     MediatorQuery,
     MediatorQuestion,
+    NodeType,
     ObserverAnswer,
     ObserverQuery,
     PropertyClaim,
     QuestionType,
+    ResourceAbove,
     WorldState,
     WorldStateSummary,
 )
@@ -271,6 +278,113 @@ def test_mediator_parse_identify_roles_emits_property_claims() -> None:
     assert all(isinstance(c, PropertyClaim) for c in answer.proposed_claims)
     assigned = {c.entity_id: c.value for c in answer.proposed_claims}
     assert assigned == {"e1": "agent", "e2": "wall"}
+
+
+# ---------------------------------------------------------------------------
+# PROPOSE_GOAL_LINKAGE — prompt and parser
+# ---------------------------------------------------------------------------
+
+
+def _summary_with_episode_goal() -> WorldStateSummary:
+    """Build the WorldStateSummary shape produced by
+    :func:`cognitive_os.oracle.build_world_summary` for a seeded
+    episode-win goal: one active Goal whose root-ATOM has a
+    ResourceAbove leaf."""
+    goal = Goal(
+        id   = "episode",
+        root = GoalNode(
+            id        = "episode",
+            node_type = NodeType.ATOM,
+            condition = ResourceAbove("episode_won", 0.5),
+        ),
+        priority = 1.0,
+    )
+    return WorldStateSummary(
+        step=1, agent={}, entities={}, active_goals=[goal],
+    )
+
+
+def test_mediator_prompt_propose_goal_linkage_exposes_expected_effect() -> None:
+    """The LLM must see the exact ``effect`` shape it should bind to,
+    otherwise it confabulates threshold/resource names that don't
+    match the target goal's leaf on canonical-key comparison."""
+    q = MediatorQuery(
+        query_id      = "m",
+        question      = MediatorQuestion.PROPOSE_GOAL_LINKAGE,
+        world_summary = _summary_with_episode_goal(),
+        focus_goals   = ["episode"],
+    )
+    messages = mediator.prompt_for(q)
+    user_text = messages[-1].content
+    assert "PROPOSE_GOAL_LINKAGE" in user_text
+    # The expected effect is pinned inline — threshold and resource id.
+    assert "episode_won" in user_text
+    assert "ResourceAbove" in user_text
+    # And active_goals serialisation surfaces the root condition.
+    assert "\"condition\"" in user_text
+
+
+def test_mediator_parse_propose_goal_linkage_emits_causal_claims() -> None:
+    q = MediatorQuery(
+        query_id      = "m",
+        question      = MediatorQuestion.PROPOSE_GOAL_LINKAGE,
+        world_summary = _summary_with_episode_goal(),
+        focus_goals   = ["episode"],
+    )
+    reply = json.dumps({
+        "causal_links": [
+            {
+                "trigger": {"kind": "AtPosition",
+                            "entity_id": "agent",
+                            "pos": [5, 7]},
+                "effect":  {"kind": "ResourceAbove",
+                            "resource_id": "episode_won",
+                            "threshold": 0.5},
+                "min_occurrences": 1,
+                "delay":           0,
+            },
+            {   # junk — dropped by parser
+                "trigger": {"kind": "Bogus"},
+                "effect":  {"kind": "ResourceAbove",
+                            "resource_id": "episode_won",
+                            "threshold": 0.5},
+            },
+        ],
+        "confidence":  0.9,
+        "explanation": "standing on the target cell flips the win flag",
+    })
+    answer = mediator.parse_answer(q, reply)
+    assert answer.confidence == 0.9
+    assert len(answer.proposed_claims) == 1
+    claim = answer.proposed_claims[0]
+    assert isinstance(claim, CausalClaim)
+    assert isinstance(claim.trigger, AtPosition)
+    assert claim.trigger.pos == (5, 7)
+    assert isinstance(claim.effect, ResourceAbove)
+    assert claim.effect.resource_id == "episode_won"
+
+
+def test_mediator_parse_propose_goal_linkage_rejects_swapped_effect() -> None:
+    """An LLM that accidentally puts an AtPosition into the ``effect``
+    slot must not produce a CausalClaim — it would be unparseable
+    upstream and would fail the canonical-key match anyway."""
+    q = MediatorQuery(
+        query_id      = "m",
+        question      = MediatorQuestion.PROPOSE_GOAL_LINKAGE,
+        world_summary = _summary_with_episode_goal(),
+        focus_goals   = ["episode"],
+    )
+    reply = json.dumps({
+        "causal_links": [{
+            "trigger": {"kind": "ResourceAbove",
+                        "resource_id": "x", "threshold": 0.5},
+            "effect":  {"kind": "AtPosition",
+                        "entity_id": "agent", "pos": [1, 1]},
+        }],
+        "confidence": 0.7,
+    })
+    answer = mediator.parse_answer(q, reply)
+    assert answer.proposed_claims == []
 
 
 # ---------------------------------------------------------------------------
