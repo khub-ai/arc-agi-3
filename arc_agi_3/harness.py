@@ -45,6 +45,7 @@ from cognitive_os import (
     WorldState,
     run_episode,
 )
+from cognitive_os.instincts import InstinctRegistry, ReduceUncertainty
 
 from .adapter import ArcAdapter
 from .backends import AnthropicBackend, LLMBackend, NullBackend
@@ -186,6 +187,16 @@ def run_harness(
             report.cached_solutions, report.path,
         )
 
+    # Tier-0 instincts (GAP 23/24): domain-general priors that propose
+    # goals unprompted each tick.  The registry is constructed once per
+    # harness invocation and carried across episodes so action-multiplier
+    # state (GAP 23) and any future instinct-local bookkeeping survive
+    # episode boundaries just as WorldState does.  ``ReduceUncertainty``
+    # is the only instinct registered at this landing; modalities
+    # ``compare`` and ``interact`` fire automatically based on ws state.
+    instincts = InstinctRegistry()
+    instincts.register(ReduceUncertainty())
+
     pms: List[PostMortem] = []
     started = time.time()
     for ep_idx in range(episodes):
@@ -197,6 +208,7 @@ def run_harness(
             cfg,
             episode_id = episode_id,
             max_steps  = max_steps,
+            instincts  = instincts,
         )
         pms.append(pm)
         _LOG.info(
