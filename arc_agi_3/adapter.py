@@ -381,17 +381,20 @@ class ArcAdapter(Adapter):
         """Trigger set appropriate for ARC-AGI-3 episodes.
 
         Returns the engine's default triggers plus the adapter-side
-        :class:`GameCharacterizationTrigger`, configured with a
+        :class:`GameCharacterizationTrigger` (configured with a
         :class:`CharacterizationStore` pointed at
         ``characterization_dir/game_characterizations.json`` when
-        provided (otherwise the trigger runs in-memory only — priors
-        don't persist across episodes).  Pass the returned list as
+        provided — otherwise the trigger runs in-memory only and
+        priors don't persist across episodes) and
+        :class:`GameDecomposer` (turns ``_game`` scenario priors into
+        plannable subgoals).  Pass the returned list as
         ``run_episode(..., triggers=adapter.default_triggers(...))``.
         """
         from .game_characterization import (
             CharacterizationStore,
             GameCharacterizationTrigger,
         )
+        from .game_decomposer import GameDecomposer
 
         store: Optional[CharacterizationStore] = None
         if characterization_dir is not None:
@@ -401,6 +404,7 @@ class ArcAdapter(Adapter):
 
         triggers: List[OracleTrigger] = list(_engine_default_triggers())
         triggers.append(GameCharacterizationTrigger(store=store))
+        triggers.append(GameDecomposer())
         return triggers
 
     # ------------------------------------------------------------------

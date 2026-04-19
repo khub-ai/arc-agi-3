@@ -1,0 +1,339 @@
+"""Game-goal decomposer — turns LLM-sourced scenario priors into
+plannable subgoals.
+
+:class:`GameCharacterizationTrigger` emits
+``PropertyClaim("_game", k, v)`` hypotheses that describe the
+scenario at a conceptual level: ``genre``, ``win_pattern``,
+``characters``, ``mechanics``.  None of those can be acted on
+directly — the planner needs :class:`~cognitive_os.types.Goal`
+objects whose conditions evaluate over observed state.
+
+This module bridges that gap.  Each step the decomposer inspects
+the current ``_game`` claims and, based on the free-form
+``win_pattern`` string, synthesises intermediate subgoals under the
+adapter-seeded episode goal.  The LLM characterisation only says
+*what kind* of goal to create; the actual target entity and
+coordinates are chosen from the engine's own perception — no LLM
+pixel trust.
+
+Strategy dispatch (piece 2 scope)
+---------------------------------
+* ``win_pattern`` contains any of
+  ``{reach, touch, navigate, arrive, goal, tile}`` (case-insensitive)
+  → **reach strategy**: pick the most visually-distinctive stationary
+  non-agent, non-wall entity and emit an ``InsideBBox`` goal over it.
+* Every other pattern → no-op.  Piece 3+ extends the vocabulary
+  (``collect`` / ``survive`` / ``match`` / ...).
+
+Idempotence
+-----------
+The decomposer runs every step.  It never re-emits an existing
+goal.  A previously-emitted reach subgoal that still references a
+live entity is left untouched; if the target entity has vanished
+(e.g. segmentation churn across level transition, LEVEL-scoped
+claim expiry), the goal is abandoned and a new one synthesised from
+the current frame.
+
+Why this is an :class:`OracleTrigger` subclass
+----------------------------------------------
+The abstraction is "per-step hook with ws access", which is
+exactly what the decomposer needs.  It happens to not make an LLM
+call, but the trigger contract does not require one — the base
+class is about dispatch cadence, not about oracle traffic.  Keeping
+it inside the trigger list lets adapters compose decomposers with
+Observer/Mediator triggers in a single ordered sequence.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+from cognitive_os import (
+    Goal,
+    GoalNode,
+    NodeType,
+    WorldState,
+)
+from cognitive_os.claims import PropertyClaim
+from cognitive_os.conditions import InsideBBox
+from cognitive_os.goal_forest import add_goal
+from cognitive_os.oracle import OracleTrigger
+
+from .game_characterization import GAME_ENTITY_ID
+
+if TYPE_CHECKING:  # pragma: no cover
+    from cognitive_os.adapters import Adapter
+    from cognitive_os.config import EngineConfig
+
+
+_LOG = logging.getLogger(__name__)
+
+# Goal id prefix for every subgoal this decomposer emits.  Stable
+# across ticks so idempotence is checkable by id lookup.
+DECOMPOSE_GOAL_PREFIX = "decompose::_game::"
+
+# Keywords that indicate a reach / navigate / touch-a-goal pattern.
+# Free-form substring match — the LLM is open-vocabulary so we lean
+# permissive.  Misses are harmless (decomposer no-ops); false
+# positives would emit a reach goal against a wrong target, which
+# piece 3's credence-decay on failure recovers from.
+_REACH_KEYWORDS: Tuple[str, ...] = (
+    "reach",
+    "touch",
+    "navigate",
+    "arrive",
+    "goal",
+    "tile",
+    "exit",
+    "destination",
+)
+
+# Default priority for decomposed subgoals.  Sits between the
+# adapter-seeded episode goal (priority 1.0, atom, unplannable) and
+# the role-goal floor (0.85), so when the episode atom falls through
+# for being unplannable, the decomposed reach subgoal is the next
+# pick rather than a learn goal.
+DEFAULT_DECOMPOSE_PRIORITY = 0.9
+
+
+class GameDecomposer(OracleTrigger):
+    """Synthesises plannable subgoals from ``_game`` scenario priors.
+
+    See module docstring for the strategy table.  The decomposer is
+    stateless across episodes (nothing to reset) but holds no
+    per-episode state either — idempotence is enforced by checking
+    ``ws.goal_forest.goals`` for the expected id prefix.
+    """
+
+    name = "game_decomposer"
+
+    def __init__(
+        self,
+        *,
+        priority: float = DEFAULT_DECOMPOSE_PRIORITY,
+    ) -> None:
+        self.priority = priority
+
+    # No per-episode state; the base-class ``reset`` no-op is correct.
+
+    def maybe_dispatch(
+        self,
+        ws:      WorldState,
+        adapter: "Adapter",
+        step:    int,
+        cfg:     "EngineConfig",
+    ) -> None:
+        chars = _read_game_claims(ws)
+        win_pattern = chars.get("win_pattern", "")
+        if not isinstance(win_pattern, str) or not win_pattern:
+            return
+
+        pattern_lc = win_pattern.lower()
+        if any(kw in pattern_lc for kw in _REACH_KEYWORDS):
+            self._maybe_emit_reach_goal(ws, step, chars)
+        # Other strategies land in piece 3+.
+
+    # ------------------------------------------------------------------
+    # Reach strategy
+    # ------------------------------------------------------------------
+
+    def _maybe_emit_reach_goal(
+        self,
+        ws:    WorldState,
+        step:  int,
+        chars: Dict[str, Any],
+    ) -> None:
+        """Pick the most visually-distinctive candidate and emit a
+        reach subgoal toward it, unless a live one already exists."""
+        # First: is a decomposed reach goal already present and still
+        # pointing at a live entity?  If so, leave it alone.
+        existing_target = _existing_reach_target(ws)
+        if existing_target is not None and existing_target in ws.entities:
+            return
+
+        agent_colour = _agent_colour(ws)
+        target_id = _pick_reach_target(ws, agent_colour=agent_colour)
+        if target_id is None:
+            return
+
+        goal_id = f"{DECOMPOSE_GOAL_PREFIX}reach::{target_id}"
+        if goal_id in ws.goal_forest.goals:
+            return
+
+        condition = InsideBBox(probe_id="agent", entity_id=target_id)
+        root = GoalNode(
+            id         = f"{goal_id}::root",
+            node_type  = NodeType.ATOM,
+            condition  = condition,
+            priority   = self.priority,
+            source     = "adapter:game_decomposer",
+            created_at = step,
+        )
+        goal = Goal(
+            id         = goal_id,
+            root       = root,
+            priority   = self.priority,
+            source     = "adapter:game_decomposer",
+            created_at = step,
+        )
+        add_goal(ws, goal)
+
+
+# ---------------------------------------------------------------------------
+# Claim extraction
+# ---------------------------------------------------------------------------
+
+
+def _read_game_claims(ws: WorldState) -> Dict[str, Any]:
+    """Return the latest-observed ``_game`` PropertyClaim values.
+
+    Multiple claims on the same property (say, successive levels
+    each emit a ``genre``) are resolved by recency — the one with
+    the highest ``last_confirmed`` wins.  This is the cheapest
+    sensible disambiguation and matches what the store does: the
+    prior for the level we're *on* is the only one that can have
+    been committed at the current step.
+    """
+    result: Dict[str, Any] = {}
+    latest: Dict[str, int] = {}
+    for h in ws.hypotheses.values():
+        claim = h.claim
+        if not isinstance(claim, PropertyClaim):
+            continue
+        if claim.entity_id != GAME_ENTITY_ID:
+            continue
+        confirmed = getattr(h.credence, "last_confirmed", 0) or 0
+        prev = latest.get(claim.property, -1)
+        if confirmed >= prev:
+            latest[claim.property] = confirmed
+            result[claim.property] = claim.value
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Target selection
+# ---------------------------------------------------------------------------
+
+
+def _existing_reach_target(ws: WorldState) -> Optional[str]:
+    """Return the target_id of any existing decompose reach goal,
+    or None if none exists."""
+    prefix = f"{DECOMPOSE_GOAL_PREFIX}reach::"
+    for gid in ws.goal_forest.goals:
+        if gid.startswith(prefix):
+            return gid[len(prefix):]
+    return None
+
+
+def _agent_colour(ws: WorldState) -> Optional[int]:
+    """Extract the controlled-actor colour signature if committed."""
+    from cognitive_os.claims import ControlledActorClaim
+    for h in ws.hypotheses.values():
+        if not isinstance(h.claim, ControlledActorClaim):
+            continue
+        if getattr(h.credence, "point", 0.0) < 0.5:
+            continue
+        try:
+            return int(h.claim.colour)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _pick_reach_target(
+    ws:            WorldState,
+    *,
+    agent_colour:  Optional[int],
+) -> Optional[str]:
+    """Choose the most visually-distinctive non-agent, non-wall entity.
+
+    Heuristic:
+      1. Exclude the agent entity (colour matches ``agent_colour``).
+      2. Exclude likely walls — entities whose bbox spans a full
+         frame edge AND whose area exceeds ``WALL_AREA_THRESHOLD``.
+      3. Among the remainder, prefer entities whose colour is unique
+         (only one entity has that colour).  Break ties by smallest
+         area — targets are typically single distinct tiles.
+      4. If no unique-colour entity exists, fall back to the
+         smallest-area candidate.
+
+    Returns the entity_id, or None if no candidates survived.
+    """
+    # Frame dimensions — best-effort from the latest observation.
+    frame_h, frame_w = _frame_dims(ws)
+
+    candidates: List[Tuple[str, int, int, Any]] = []
+    # (entity_id, area, colour, bbox)
+    for eid, ent in ws.entities.items():
+        props = ent.properties
+        colour = props.get("colour")
+        if agent_colour is not None and colour == agent_colour:
+            continue
+        bbox = props.get("bbox")
+        area = props.get("area")
+        if bbox is None or area is None:
+            continue
+        if _looks_like_wall(bbox, area, frame_h, frame_w):
+            continue
+        try:
+            area_i = int(area)
+        except (TypeError, ValueError):
+            continue
+        candidates.append((eid, area_i, colour, bbox))
+
+    if not candidates:
+        return None
+
+    # Colour uniqueness: count how many candidates share each colour.
+    colour_counts: Dict[Any, int] = {}
+    for _eid, _a, colour, _b in candidates:
+        colour_counts[colour] = colour_counts.get(colour, 0) + 1
+
+    unique = [c for c in candidates if colour_counts.get(c[2], 0) == 1]
+    pool = unique if unique else candidates
+    # Smallest-area wins; ties broken by entity id for determinism.
+    pool.sort(key=lambda c: (c[1], c[0]))
+    return pool[0][0]
+
+
+WALL_AREA_THRESHOLD = 80  # pixels; heuristic, tuned for 64×64 ARC frames
+
+
+def _looks_like_wall(
+    bbox:     Any,
+    area:     Any,
+    frame_h:  Optional[int],
+    frame_w:  Optional[int],
+) -> bool:
+    """A bbox that spans a full frame edge AND exceeds the area
+    threshold is probably a wall.  Conservative: if frame dims are
+    unknown we never classify anything as a wall (accept the risk of
+    aiming at a wall rather than aiming at nothing)."""
+    try:
+        r0, c0, r1, c1 = (int(x) for x in bbox)
+        area_i = int(area)
+    except (TypeError, ValueError):
+        return False
+    if area_i < WALL_AREA_THRESHOLD:
+        return False
+    if frame_h is None or frame_w is None:
+        return False
+    spans_row = (r0 == 0 and r1 >= frame_h - 1)
+    spans_col = (c0 == 0 and c1 >= frame_w - 1)
+    return spans_row or spans_col
+
+
+def _frame_dims(ws: WorldState) -> Tuple[Optional[int], Optional[int]]:
+    """Read (height, width) from the latest observation if possible."""
+    if not ws.observation_history:
+        return (None, None)
+    raw = getattr(ws.observation_history[-1], "raw_frame", None)
+    if not raw:
+        return (None, None)
+    try:
+        h = len(raw)
+        w = len(raw[0]) if h > 0 else 0
+    except (TypeError, IndexError):
+        return (None, None)
+    return (h, w)
