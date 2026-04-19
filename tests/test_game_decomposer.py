@@ -151,10 +151,28 @@ def test_reach_keyword_emits_goal() -> None:
 
 def test_unknown_pattern_noop() -> None:
     ws = _ws_with_frame()
-    _seed_game_claim(ws, "win_pattern", "collect every coin")  # no reach keyword
+    # No reach-family keyword ("survive", "defend", "match" etc. land in
+    # future pieces).
+    _seed_game_claim(ws, "win_pattern", "survive as long as possible")
     _entity(ws, "e1", bbox=(5, 5, 6, 6), area=4, colour=7)
     GameDecomposer().maybe_dispatch(ws, adapter=None, step=0, cfg=None)  # type: ignore[arg-type]
     assert _decompose_goals(ws) == {}
+
+
+def test_collect_keyword_emits_reach_goal() -> None:
+    """Collect-style patterns are operationally serial reach —
+    decomposer emits a reach subgoal and piece 2's
+    target-vanished resynthesis sequences across items."""
+    ws = _ws_with_frame()
+    _seed_game_claim(ws, "win_pattern", "collect all marked items")
+    _seed_agent_claim(ws, colour=1)
+    _entity(ws, "item1", bbox=(5, 5, 6, 6), area=4, colour=7)
+
+    GameDecomposer().maybe_dispatch(ws, adapter=None, step=0, cfg=None)  # type: ignore[arg-type]
+    goals = _decompose_goals(ws)
+    assert len(goals) == 1
+    (gid,) = goals
+    assert gid.endswith("reach::item1")
 
 
 def test_empty_win_pattern_noop() -> None:

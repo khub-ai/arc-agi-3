@@ -80,6 +80,14 @@ DECOMPOSE_GOAL_PREFIX = "decompose::_game::"
 # permissive.  Misses are harmless (decomposer no-ops); false
 # positives would emit a reach goal against a wrong target, which
 # piece 3's credence-decay on failure recovers from.
+#
+# The ``collect`` family is included because a "collect every item"
+# pattern decomposes operationally into a *sequence* of reach-toward-
+# distinct-target.  Piece 2's target-vanished resynthesis already
+# handles the sequencing: once the first item is picked up and its
+# entity drops out of segmentation, the decomposer picks a fresh
+# target on the next tick.  So a single strategy covers both reach-
+# and collect-shaped goals.
 _REACH_KEYWORDS: Tuple[str, ...] = (
     "reach",
     "touch",
@@ -89,6 +97,11 @@ _REACH_KEYWORDS: Tuple[str, ...] = (
     "tile",
     "exit",
     "destination",
+    "collect",
+    "gather",
+    "pickup",
+    "pick up",
+    "item",
 )
 
 # Default priority for decomposed subgoals.  Sits between the
