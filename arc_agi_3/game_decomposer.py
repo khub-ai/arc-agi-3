@@ -57,8 +57,10 @@ from cognitive_os import (
 )
 from cognitive_os.claims import PropertyClaim
 from cognitive_os.conditions import InsideBBox
+from cognitive_os.credence import update_on_contradict
 from cognitive_os.goal_forest import add_goal
 from cognitive_os.oracle import OracleTrigger
+from cognitive_os.types import GoalStatus
 
 from .game_characterization import GAME_ENTITY_ID
 
@@ -96,6 +98,15 @@ _REACH_KEYWORDS: Tuple[str, ...] = (
 # pick rather than a learn goal.
 DEFAULT_DECOMPOSE_PRIORITY = 0.9
 
+# Step budget for a reach subgoal before it is considered failed.
+# On expiry the goal is abandoned and the underlying ``win_pattern``
+# claim is contradicted once — reducing its credence so a future
+# decomposer tick is less dominated by a stale prior.  80 steps is
+# generous: typical reach goals on ARC frames should resolve inside
+# a couple-dozen steps once the agent commits, so 80 gives the
+# planner plenty of runway before we conclude the pattern was wrong.
+REACH_GOAL_STEP_BUDGET = 80
+
 
 class GameDecomposer(OracleTrigger):
     """Synthesises plannable subgoals from ``_game`` scenario priors.
@@ -111,11 +122,19 @@ class GameDecomposer(OracleTrigger):
     def __init__(
         self,
         *,
-        priority: float = DEFAULT_DECOMPOSE_PRIORITY,
+        priority:           float = DEFAULT_DECOMPOSE_PRIORITY,
+        reach_step_budget:  int   = REACH_GOAL_STEP_BUDGET,
     ) -> None:
-        self.priority = priority
+        self.priority          = priority
+        self.reach_step_budget = reach_step_budget
+        # goal_id → step-when-emitted.  Used by the decay-on-failure
+        # pass to detect reach goals that have outrun their budget.
+        self._emit_step: Dict[str, int] = {}
 
-    # No per-episode state; the base-class ``reset`` no-op is correct.
+    def reset(self) -> None:
+        """Clear per-episode tracking.  Called by the runner at
+        episode boundaries."""
+        self._emit_step.clear()
 
     def maybe_dispatch(
         self,
@@ -124,6 +143,11 @@ class GameDecomposer(OracleTrigger):
         step:    int,
         cfg:     "EngineConfig",
     ) -> None:
+        # First: sweep existing emitted goals for success / churn /
+        # timeout.  On timeout, contradict the win_pattern claim so a
+        # stale prior loses ground.
+        self._sweep_tracked_goals(ws, step)
+
         chars = _read_game_claims(ws)
         win_pattern = chars.get("win_pattern", "")
         if not isinstance(win_pattern, str) or not win_pattern:
@@ -132,7 +156,70 @@ class GameDecomposer(OracleTrigger):
         pattern_lc = win_pattern.lower()
         if any(kw in pattern_lc for kw in _REACH_KEYWORDS):
             self._maybe_emit_reach_goal(ws, step, chars)
-        # Other strategies land in piece 3+.
+        # Other strategies land in future pieces.
+
+    # ------------------------------------------------------------------
+    # Lifecycle sweep — success / churn / timeout
+    # ------------------------------------------------------------------
+
+    def _sweep_tracked_goals(self, ws: WorldState, step: int) -> None:
+        """Resolve each tracked goal's fate.
+
+        * **Success** (ACHIEVED or condition already True): drop the
+          tracking entry; piece 1's level-transition path handles
+          persistence.
+        * **Churn** (target entity vanished): abandon the goal, drop
+          tracking — do NOT decay, since this is segmentation
+          instability, not a pattern-mismatch signal.
+        * **Timeout** (step - emit_step > budget, condition still
+          False): abandon the goal and contradict the underlying
+          ``win_pattern`` hypothesis once.  Re-emission in the same
+          tick picks up a fresh target if one exists.
+
+        Nothing happens to unexpired, unresolved goals — they keep
+        running.
+        """
+        for goal_id, emit_step in list(self._emit_step.items()):
+            goal = ws.goal_forest.goals.get(goal_id)
+            if goal is None:
+                # Gone from forest (externally pruned / reset).
+                self._emit_step.pop(goal_id, None)
+                continue
+
+            target_id = goal_id[len(f"{DECOMPOSE_GOAL_PREFIX}reach::"):]
+            status = goal.root.status
+            if status == GoalStatus.ACHIEVED:
+                self._emit_step.pop(goal_id, None)
+                continue
+
+            # Success via direct condition check — the forest may lag
+            # the engine's own verdict by a step.
+            cond = goal.root.condition
+            if cond is not None:
+                try:
+                    verdict = cond.evaluate(ws)
+                except Exception:  # pragma: no cover — defensive
+                    verdict = None
+                if verdict is True:
+                    self._emit_step.pop(goal_id, None)
+                    continue
+
+            # Churn: target vanished.  Abandon, don't decay.
+            if target_id not in ws.entities:
+                goal.root.status = GoalStatus.ABANDONED
+                self._emit_step.pop(goal_id, None)
+                continue
+
+            # Timeout: budget exhausted, still unreached.
+            if step - emit_step > self.reach_step_budget:
+                goal.root.status = GoalStatus.ABANDONED
+                self._emit_step.pop(goal_id, None)
+                _contradict_win_pattern(ws, step)
+                _LOG.info(
+                    "GameDecomposer: reach goal %s timed out after %d steps; "
+                    "contradicting win_pattern claim.",
+                    goal_id, step - emit_step,
+                )
 
     # ------------------------------------------------------------------
     # Reach strategy
@@ -178,11 +265,48 @@ class GameDecomposer(OracleTrigger):
             created_at = step,
         )
         add_goal(ws, goal)
+        self._emit_step[goal_id] = step
 
 
 # ---------------------------------------------------------------------------
 # Claim extraction
 # ---------------------------------------------------------------------------
+
+
+def _contradict_win_pattern(ws: WorldState, step: int) -> None:
+    """Apply one contradiction to every ``_game`` ``win_pattern``
+    PropertyClaim hypothesis in the store.
+
+    We decay specifically the field we dispatched on — ``win_pattern``
+    — rather than the whole characterization.  Other fields (``genre``,
+    ``mechanics``) remain at their observed credence; only the part
+    that predicted "reach X" loses standing on one timeout.  If
+    subsequent ticks also time out, repeated contradictions compound
+    via :func:`update_on_contradict` and eventually push the claim
+    below the commit threshold — at which point ``_read_game_claims``
+    stops seeing it and the decomposer naturally stands down.
+    """
+    cfg = _credence_cfg(ws)
+    for h in ws.hypotheses.values():
+        claim = h.claim
+        if not isinstance(claim, PropertyClaim):
+            continue
+        if claim.entity_id != GAME_ENTITY_ID:
+            continue
+        if claim.property != "win_pattern":
+            continue
+        h.credence = update_on_contradict(h.credence, step, cfg, strength=1.0)
+        h.contradicting_steps.append(step)
+
+
+def _credence_cfg(ws: WorldState):
+    """Read the credence-update config off the live engine config, or
+    fall back to defaults if none is attached."""
+    cfg = getattr(ws, "config", None)
+    if cfg is not None and hasattr(cfg, "credence"):
+        return cfg.credence
+    from cognitive_os.config import CredenceConfig
+    return CredenceConfig()
 
 
 def _read_game_claims(ws: WorldState) -> Dict[str, Any]:

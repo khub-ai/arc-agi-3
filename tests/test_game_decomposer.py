@@ -25,11 +25,19 @@ from cognitive_os import WorldState
 from cognitive_os.claims import ControlledActorClaim, PropertyClaim
 from cognitive_os.conditions import InsideBBox
 from cognitive_os.credence import Credence
-from cognitive_os.types import EntityModel, Hypothesis, Observation, Scope, ScopeKind
+from cognitive_os.types import (
+    EntityModel,
+    GoalStatus,
+    Hypothesis,
+    Observation,
+    Scope,
+    ScopeKind,
+)
 
 from arc_agi_3.game_characterization import GAME_ENTITY_ID
 from arc_agi_3.game_decomposer import (
     DECOMPOSE_GOAL_PREFIX,
+    REACH_GOAL_STEP_BUDGET,
     GameDecomposer,
 )
 
@@ -303,3 +311,101 @@ def test_priority_between_episode_and_role_floor() -> None:
     goals = _decompose_goals(ws)
     (goal,) = goals.values()
     assert 0.85 < goal.priority < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Piece 3 — decay on subgoal failure
+# ---------------------------------------------------------------------------
+
+
+def _win_pattern_credence(ws: WorldState) -> float:
+    for h in ws.hypotheses.values():
+        if (
+            isinstance(h.claim, PropertyClaim)
+            and h.claim.entity_id == GAME_ENTITY_ID
+            and h.claim.property == "win_pattern"
+        ):
+            return h.credence.point
+    raise AssertionError("no win_pattern claim present")
+
+
+def test_timeout_abandons_goal_and_contradicts_win_pattern() -> None:
+    ws = _ws_with_frame()
+    _seed_game_claim(ws, "win_pattern", "reach the tile", point=0.9)
+    _seed_agent_claim(ws, colour=1)
+    _entity(ws, "target", bbox=(5, 5, 6, 6), area=4, colour=7)
+
+    dec = GameDecomposer(reach_step_budget=5)
+    dec.maybe_dispatch(ws, adapter=None, step=0, cfg=None)  # type: ignore[arg-type]
+    goal_id = f"{DECOMPOSE_GOAL_PREFIX}reach::target"
+    assert ws.goal_forest.goals[goal_id].root.status != GoalStatus.ABANDONED
+    pre_credence = _win_pattern_credence(ws)
+
+    # Advance past the budget — no success signal.
+    dec.maybe_dispatch(ws, adapter=None, step=10, cfg=None)  # type: ignore[arg-type]
+
+    assert ws.goal_forest.goals[goal_id].root.status == GoalStatus.ABANDONED
+    assert _win_pattern_credence(ws) < pre_credence
+
+
+def test_timeout_does_not_contradict_if_target_vanished() -> None:
+    """Churn (target disappears) should abandon the goal but NOT
+    decay — that's segmentation noise, not a pattern-mismatch."""
+    ws = _ws_with_frame()
+    _seed_game_claim(ws, "win_pattern", "reach the tile", point=0.9)
+    _seed_agent_claim(ws, colour=1)
+    _entity(ws, "target", bbox=(5, 5, 6, 6), area=4, colour=7)
+
+    dec = GameDecomposer(reach_step_budget=5)
+    dec.maybe_dispatch(ws, adapter=None, step=0, cfg=None)  # type: ignore[arg-type]
+    pre_credence = _win_pattern_credence(ws)
+
+    # Target vanishes BEFORE the budget runs out.
+    del ws.entities["target"]
+    dec.maybe_dispatch(ws, adapter=None, step=10, cfg=None)  # type: ignore[arg-type]
+
+    # Churn path: no decay.
+    assert _win_pattern_credence(ws) == pre_credence
+
+
+def test_success_clears_tracking_without_decay() -> None:
+    """If the condition is satisfied, the goal is done — drop the
+    tracking entry, don't decay."""
+    ws = _ws_with_frame()
+    _seed_game_claim(ws, "win_pattern", "reach the tile", point=0.9)
+    _seed_agent_claim(ws, colour=1)
+    _entity(ws, "target", bbox=(5, 5, 6, 6), area=4, colour=7)
+    # Agent already inside target bbox.
+    ws.agent["position"] = (5, 5)
+
+    dec = GameDecomposer(reach_step_budget=5)
+    dec.maybe_dispatch(ws, adapter=None, step=0, cfg=None)  # type: ignore[arg-type]
+    pre_credence = _win_pattern_credence(ws)
+
+    # Tick well past budget — but condition is True, so no timeout.
+    dec.maybe_dispatch(ws, adapter=None, step=100, cfg=None)  # type: ignore[arg-type]
+
+    assert _win_pattern_credence(ws) == pre_credence
+    # Tracking was cleared after the success detection.
+    assert not dec._emit_step
+
+
+def test_reset_clears_tracking() -> None:
+    ws = _ws_with_frame()
+    _seed_game_claim(ws, "win_pattern", "reach the tile")
+    _seed_agent_claim(ws, colour=1)
+    _entity(ws, "target", bbox=(5, 5, 6, 6), area=4, colour=7)
+
+    dec = GameDecomposer()
+    dec.maybe_dispatch(ws, adapter=None, step=0, cfg=None)  # type: ignore[arg-type]
+    assert dec._emit_step
+
+    dec.reset()
+    assert not dec._emit_step
+
+
+def test_default_step_budget_is_sane() -> None:
+    """Sanity pin on the budget.  Bumping this means the decomposer
+    tolerates longer periods of apparent failure before decay."""
+    assert REACH_GOAL_STEP_BUDGET >= 40
+    assert REACH_GOAL_STEP_BUDGET <= 500
