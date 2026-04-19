@@ -47,7 +47,7 @@ Observer/Mediator triggers in a single ordered sequence.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from cognitive_os import (
     Goal,
@@ -120,6 +120,14 @@ DEFAULT_DECOMPOSE_PRIORITY = 0.9
 # planner plenty of runway before we conclude the pattern was wrong.
 REACH_GOAL_STEP_BUDGET = 80
 
+# Grace period after emission before a reach goal is checked for
+# planner-reachability.  The planner needs motion models committed
+# and the agent on-frame to find a path; on ARC episodes the probe
+# phase takes ~4 steps, and motion models typically commit around
+# s3-s5 with the fast-commit miner.  Five steps gives the engine
+# time to settle before we conclude a target is unreachable.
+REACH_GOAL_RETARGET_GRACE = 5
+
 
 class GameDecomposer(OracleTrigger):
     """Synthesises plannable subgoals from ``_game`` scenario priors.
@@ -137,17 +145,24 @@ class GameDecomposer(OracleTrigger):
         *,
         priority:           float = DEFAULT_DECOMPOSE_PRIORITY,
         reach_step_budget:  int   = REACH_GOAL_STEP_BUDGET,
+        retarget_grace:     int   = REACH_GOAL_RETARGET_GRACE,
     ) -> None:
         self.priority          = priority
         self.reach_step_budget = reach_step_budget
+        self.retarget_grace    = retarget_grace
         # goal_id → step-when-emitted.  Used by the decay-on-failure
         # pass to detect reach goals that have outrun their budget.
         self._emit_step: Dict[str, int] = {}
+        # Entity ids we've proven unreachable this episode.  Filtered
+        # out of fresh target selection so we don't loop back to a
+        # target that the planner has already rejected.
+        self._avoid_targets: Set[str] = set()
 
     def reset(self) -> None:
         """Clear per-episode tracking.  Called by the runner at
         episode boundaries."""
         self._emit_step.clear()
+        self._avoid_targets.clear()
 
     def maybe_dispatch(
         self,
@@ -157,9 +172,9 @@ class GameDecomposer(OracleTrigger):
         cfg:     "EngineConfig",
     ) -> None:
         # First: sweep existing emitted goals for success / churn /
-        # timeout.  On timeout, contradict the win_pattern claim so a
-        # stale prior loses ground.
-        self._sweep_tracked_goals(ws, step)
+        # timeout / planner-unreachable.  On timeout, contradict the
+        # win_pattern claim so a stale prior loses ground.
+        self._sweep_tracked_goals(ws, step, adapter)
 
         chars = _read_game_claims(ws)
         win_pattern = chars.get("win_pattern", "")
@@ -175,7 +190,12 @@ class GameDecomposer(OracleTrigger):
     # Lifecycle sweep — success / churn / timeout
     # ------------------------------------------------------------------
 
-    def _sweep_tracked_goals(self, ws: WorldState, step: int) -> None:
+    def _sweep_tracked_goals(
+        self,
+        ws:      WorldState,
+        step:    int,
+        adapter: "Adapter",
+    ) -> None:
         """Resolve each tracked goal's fate.
 
         * **Success** (ACHIEVED or condition already True): drop the
@@ -188,6 +208,11 @@ class GameDecomposer(OracleTrigger):
           False): abandon the goal and contradict the underlying
           ``win_pattern`` hypothesis once.  Re-emission in the same
           tick picks up a fresh target if one exists.
+        * **Unreachable** (after the retarget-grace window, the BFS
+          planner cannot find a plan to the target): abandon the
+          goal, add the target to ``_avoid_targets`` so re-emission
+          picks a different candidate.  No credence decay — this is
+          a target-choice failure, not a pattern-prediction failure.
 
         Nothing happens to unexpired, unresolved goals — they keep
         running.
@@ -233,6 +258,34 @@ class GameDecomposer(OracleTrigger):
                     "contradicting win_pattern claim.",
                     goal_id, step - emit_step,
                 )
+                continue
+
+            # Unreachable: planner can't find a path.  Three
+            # preconditions before we retarget:
+            #   1. adapter present (unit tests may pass None);
+            #   2. age past the grace window (motion models take a
+            #      handful of probe steps to commit);
+            #   3. full planner substrate — agent position known AND
+            #      every action in the action space has a committed
+            #      motion model.  A partial MM set genuinely blocks
+            #      BFS paths that a complete set would find, so
+            #      "unplannable now" isn't yet informative.
+            age = step - emit_step
+            if (
+                adapter is not None
+                and age >= self.retarget_grace
+                and _planner_has_substrate(ws, adapter)
+                and _goal_unplannable(ws, goal_id, adapter, step)
+            ):
+                goal.root.status = GoalStatus.ABANDONED
+                self._emit_step.pop(goal_id, None)
+                self._avoid_targets.add(target_id)
+                _LOG.info(
+                    "GameDecomposer: reach goal %s unreachable from current "
+                    "pos after %d steps; avoiding target %s.",
+                    goal_id, age, target_id,
+                )
+                continue
 
     # ------------------------------------------------------------------
     # Reach strategy
@@ -246,14 +299,18 @@ class GameDecomposer(OracleTrigger):
     ) -> None:
         """Pick the most visually-distinctive candidate and emit a
         reach subgoal toward it, unless a live one already exists."""
-        # First: is a decomposed reach goal already present and still
+        # First: is a decomposed reach goal already present, live, and
         # pointing at a live entity?  If so, leave it alone.
-        existing_target = _existing_reach_target(ws)
+        existing_target = _existing_live_reach_target(ws)
         if existing_target is not None and existing_target in ws.entities:
             return
 
         agent_colour = _agent_colour(ws)
-        target_id = _pick_reach_target(ws, agent_colour=agent_colour)
+        target_id = _pick_reach_target(
+            ws,
+            agent_colour   = agent_colour,
+            avoid_targets  = self._avoid_targets,
+        )
         if target_id is None:
             return
 
@@ -284,6 +341,54 @@ class GameDecomposer(OracleTrigger):
 # ---------------------------------------------------------------------------
 # Claim extraction
 # ---------------------------------------------------------------------------
+
+
+def _planner_has_substrate(ws: WorldState, adapter: "Adapter") -> bool:
+    """Guard: BFS is only meaningful once the agent has a known
+    position AND every action in the action space has a committed
+    motion model.  With a partial MM set, BFS misses entire
+    movement directions and will falsely declare reachable targets
+    unreachable — retarget-churning through every candidate during
+    the probe phase.
+    """
+    if ws.agent.get("position") is None:
+        return False
+    from cognitive_os.claims import MotionModelClaim
+    from cognitive_os import hypothesis_store as _store
+    try:
+        needed = {a.id for a in adapter.action_space()}
+    except Exception:  # pragma: no cover — defensive
+        return False
+    if not needed:
+        return False
+    committed_ids = {
+        h.claim.action_id
+        for h in _store.committed(ws)
+        if isinstance(h.claim, MotionModelClaim)
+    }
+    return needed.issubset(committed_ids)
+
+
+def _goal_unplannable(
+    ws:       WorldState,
+    goal_id:  str,
+    adapter:  "Adapter",
+    step:     int,
+) -> bool:
+    """True when the planner cannot find a plan to ``goal_id`` from
+    the current world state.
+
+    Lazy-imports :mod:`cognitive_os.planner` and swallows any
+    planner exceptions as "not unplannable" — the decomposer is a
+    best-effort signal, and we'd rather let a goal run its normal
+    timeout than treat a planner bug as a mandate to retarget.
+    """
+    try:
+        from cognitive_os.planner import compute_plan
+        plan = compute_plan(ws, goal_id, adapter.action_space(), step=step)
+    except Exception:  # pragma: no cover — defensive
+        return False
+    return plan is None
 
 
 def _contradict_win_pattern(ws: WorldState, step: int) -> None:
@@ -353,13 +458,19 @@ def _read_game_claims(ws: WorldState) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _existing_reach_target(ws: WorldState) -> Optional[str]:
-    """Return the target_id of any existing decompose reach goal,
-    or None if none exists."""
+def _existing_live_reach_target(ws: WorldState) -> Optional[str]:
+    """Return the target_id of any existing decompose reach goal
+    whose status is not terminal (ACHIEVED / PRUNED / ABANDONED),
+    or None if none exists.  Abandoned goals don't block new
+    emissions — that's how retargeting works."""
     prefix = f"{DECOMPOSE_GOAL_PREFIX}reach::"
-    for gid in ws.goal_forest.goals:
-        if gid.startswith(prefix):
-            return gid[len(prefix):]
+    for gid, goal in ws.goal_forest.goals.items():
+        if not gid.startswith(prefix):
+            continue
+        status = goal.root.status
+        if status in (GoalStatus.ACHIEVED, GoalStatus.PRUNED, GoalStatus.ABANDONED):
+            continue
+        return gid[len(prefix):]
     return None
 
 
@@ -379,9 +490,10 @@ def _agent_colour(ws: WorldState) -> Optional[int]:
 
 
 def _pick_reach_target(
-    ws:            WorldState,
+    ws:             WorldState,
     *,
-    agent_colour:  Optional[int],
+    agent_colour:   Optional[int],
+    avoid_targets:  Optional[Set[str]] = None,
 ) -> Optional[str]:
     """Choose the most visually-distinctive non-agent, non-wall entity.
 
@@ -400,9 +512,12 @@ def _pick_reach_target(
     # Frame dimensions — best-effort from the latest observation.
     frame_h, frame_w = _frame_dims(ws)
 
+    avoid = avoid_targets or set()
     candidates: List[Tuple[str, int, int, Any]] = []
     # (entity_id, area, colour, bbox)
     for eid, ent in ws.entities.items():
+        if eid in avoid:
+            continue
         props = ent.properties
         colour = props.get("colour")
         if agent_colour is not None and colour == agent_colour:
