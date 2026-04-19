@@ -33,6 +33,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
 
+from pathlib import Path
+
 from cognitive_os import (
     Action,
     Adapter,
@@ -50,6 +52,7 @@ from cognitive_os import (
     WorldState,
     add_goal,
 )
+from cognitive_os.oracle import OracleTrigger, default_triggers as _engine_default_triggers
 
 from .action_mapping import (
     engine_action_for,
@@ -299,6 +302,12 @@ class ArcAdapter(Adapter):
             priority = 1.0,
         ))
 
+        # Private agent state surviving per-step ``ws.agent`` overwrites
+        # (the runner preserves keys starting with ``_``).  Surfaced to
+        # adapter-side triggers that need game identity for tag-indexed
+        # retrieval (see :mod:`game_characterization`).
+        ws.agent["_env_id"] = self.env_id
+
     def reset(self) -> Observation:
         self._perception.reset_for_new_episode()
         # Per-episode budget and usage counters reset on every reset.
@@ -359,6 +368,40 @@ class ArcAdapter(Adapter):
         """Delegate to :attr:`backend`.  See :meth:`observer_query` for
         the backend semantics."""
         return self.backend.answer_mediator_query(query)
+
+    # ------------------------------------------------------------------
+    # Adapter-owned trigger suite
+    # ------------------------------------------------------------------
+
+    def default_triggers(
+        self,
+        *,
+        characterization_dir: Optional[Path] = None,
+    ) -> List[OracleTrigger]:
+        """Trigger set appropriate for ARC-AGI-3 episodes.
+
+        Returns the engine's default triggers plus the adapter-side
+        :class:`GameCharacterizationTrigger`, configured with a
+        :class:`CharacterizationStore` pointed at
+        ``characterization_dir/game_characterizations.json`` when
+        provided (otherwise the trigger runs in-memory only — priors
+        don't persist across episodes).  Pass the returned list as
+        ``run_episode(..., triggers=adapter.default_triggers(...))``.
+        """
+        from .game_characterization import (
+            CharacterizationStore,
+            GameCharacterizationTrigger,
+        )
+
+        store: Optional[CharacterizationStore] = None
+        if characterization_dir is not None:
+            store = CharacterizationStore(
+                Path(characterization_dir) / "game_characterizations.json"
+            )
+
+        triggers: List[OracleTrigger] = list(_engine_default_triggers())
+        triggers.append(GameCharacterizationTrigger(store=store))
+        return triggers
 
     # ------------------------------------------------------------------
     # Adapter ABC — tool dispatch

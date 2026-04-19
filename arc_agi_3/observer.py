@@ -78,6 +78,8 @@ def prompt_for(query: ObserverQuery) -> List[ChatMessage]:
         body = _body_enumerate_objects(query)
     elif query.question == QuestionType.COMPARE_VISUAL_STATES:
         body = _body_compare_visual_states(query)
+    elif query.question == QuestionType.CHARACTERIZE_GAME:
+        body = _body_characterize_game(query)
     else:
         # COMPARE and STRUCTURE_MAP land here in Phase 5b-i.
         body = _body_unsupported(query)
@@ -232,6 +234,62 @@ def _body_compare_visual_states(query: ObserverQuery) -> str:
     )
 
 
+def _body_characterize_game(query: ObserverQuery) -> str:
+    """Prompt for CHARACTERIZE_GAME.
+
+    Asks the LLM for world-knowledge priors about the scenario: what
+    kind of game / task this looks like, the likely win condition, the
+    typical characters and mechanics.  Unlike ENUMERATE_OBJECTS, we
+    are *not* trusting the LLM on pixel positions — the reply is a
+    scene-level prior that drives goal decomposition, not a claim
+    about where things are.
+
+    Reply combines a free-form ``narrative`` (useful for audit and
+    future prior-match prompts) with a small set of open-string
+    structured fields (``genre``, ``win_pattern``, ``characters``,
+    ``mechanics``).  No closed enumerations — the vocabulary is
+    whatever the LLM proposes; the downstream decomposer and
+    retrieval store treat them as tags.
+    """
+    description = (
+        "Given the first frame of a new level, characterise the "
+        "scenario at a conceptual level.  Draw on world knowledge of "
+        "common game types (maze navigation, collection, puzzle, "
+        "chase, platformer, resource-management, survival, etc.); the "
+        "engine has no such prior and needs you to supply it.  You "
+        "are NOT being asked to locate anything precisely — coordinates "
+        "will be ignored.  Answer at the level of \"what kind of game "
+        "is this and how is it usually played\"."
+    )
+    reply_schema = {
+        "result": (
+            "object with fields: "
+            "\"narrative\" (1-3 sentence free-form summary for audit / "
+            "future-level priming), "
+            "\"genre\" (short lowercase phrase — e.g. \"maze-navigation\", "
+            "\"collection\", \"puzzle\", \"chase\"; pick whichever fits "
+            "best, or propose a new one), "
+            "\"win_pattern\" (short lowercase phrase describing the "
+            "likely win condition — e.g. \"reach distinguished tile\", "
+            "\"collect all items\", \"survive N steps\", \"match pattern\"), "
+            "\"characters\" (array of short lowercase role names — e.g. "
+            "[\"avatar\", \"target\", \"wall\", \"hazard\"] — what kinds "
+            "of actors / objects you'd expect to find and interact with), "
+            "\"mechanics\" (1-2 sentence open-string description of how "
+            "the player typically acts and what changes state).  All "
+            "strings are open-vocabulary — no closed enumeration."
+        ),
+        "confidence":  "float in [0,1] — overall confidence in the characterisation",
+        "explanation": "short string; what visual cues led you to this reading",
+    }
+    return _compose_body(
+        question     = "CHARACTERIZE_GAME",
+        description  = description,
+        reply_schema = reply_schema,
+        query        = query,
+    )
+
+
 def _body_unsupported(query: ObserverQuery) -> str:
     return _compose_body(
         question     = query.question.value,
@@ -358,6 +416,26 @@ def parse_answer(query: ObserverQuery, reply: str) -> ObserverAnswer:
             pass
         else:
             result = []
+            confidence = min(confidence, 0.1)
+    elif query.question == QuestionType.CHARACTERIZE_GAME:
+        # Expect an object with the five open-string fields.  Missing
+        # fields default to empty strings / empty list; any dict shape
+        # is accepted so the downstream store can still retain partials.
+        if isinstance(result, dict):
+            characters = result.get("characters", [])
+            if not isinstance(characters, list):
+                characters = [str(characters)] if characters else []
+            characters = [str(c).strip().lower() for c in characters
+                          if isinstance(c, (str, int, float)) and str(c).strip()]
+            result = {
+                "narrative":   str(result.get("narrative",    ""))[:480],
+                "genre":       str(result.get("genre",        "")).strip().lower()[:80],
+                "win_pattern": str(result.get("win_pattern",  "")).strip().lower()[:120],
+                "characters":  characters,
+                "mechanics":   str(result.get("mechanics",    ""))[:480],
+            }
+        else:
+            result = None
             confidence = min(confidence, 0.1)
     elif query.question == QuestionType.COMPARE_VISUAL_STATES:
         # Expect {"same_glyph": bool, "orientation_match": bool}.
