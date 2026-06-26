@@ -1,0 +1,69 @@
+{
+  "note": "Game-agnostic strategic priors, encoded as MEANS-ENDS OPERATORS / goal+role priors so a backward-chaining planner can CHAIN them into a plan (knowledge alone is inert). Tier-0 (no game ids/entities/colours). GUESSED credence -- require a cross-game transfer check + the MEA-operator wiring before promotion into kb_seed/. Derived from the ka59 reasoning but stated generally. [PROMOTED to cold seed + wired into kb_recall as the planning_priors source, 2026-06-26; credences remain GUESSED pending the ka59 transfer check.]",
+  "priors": [
+    {
+      "id": "prior_reachability_is_motion_relative",
+      "kind": "mea_operator",
+      "reasoning_mode": "backward",
+      "difference": "a target is UNREACHABLE by the agent's current motion (path search under the default motion fails)",
+      "operator": "do NOT conclude impossible. Enumerate OTHER motion modalities (slide, push, launch, drop, fall, swap/teleport) and other deliverable objects; a barrier blocks specific motion TYPES, not motion in general. Retarget the delivery to a modality that crosses the barrier.",
+      "spawns_subgoals": [
+        "deliver the cargo to the target via <a barrier-crossing modality>"
+      ],
+      "credence": 0.4,
+      "provenance": "generalized_strategy"
+    },
+    {
+      "id": "prior_act_through_intermediary",
+      "kind": "mea_operator",
+      "reasoning_mode": "backward",
+      "difference": "the agent cannot DIRECTLY reach or affect the target",
+      "operator": "find a controllable object the agent CAN reach that can in turn reach the target; drive that intermediary into the target.",
+      "spawns_subgoals": [
+        "position a controllable intermediary on a line to the target",
+        "drive the intermediary into the target"
+      ],
+      "credence": 0.4,
+      "provenance": "generalized_strategy (matches lifted operator op2)"
+    },
+    {
+      "id": "prior_object_property_is_affordance",
+      "kind": "mea_operator",
+      "reasoning_mode": "backward",
+      "difference": "a constraint blocks the plan and no known operator reduces it",
+      "operator": "scan MEASURED object-properties (slides-far-when-pushed, floats, heavy, passes-through-X) for one that defeats the binding constraint; promote that property to an operator.",
+      "spawns_subgoals": [
+        "apply the object-property that bypasses the constraint"
+      ],
+      "credence": 0.4,
+      "provenance": "generalized_strategy"
+    },
+    {
+      "id": "prior_order_to_avoid_stranding_the_agent",
+      "kind": "plan_ordering_constraint",
+      "reasoning_mode": "backward",
+      "difference": "a plan has multiple subgoals AND the agent's own position/freedom is itself a resource (it must stay free to act, or filling a slot with it consumes it)",
+      "operator": "order subgoals so a step that CONSUMES or STRANDS the agent (occupies a slot, spends a one-shot, blocks itself in) runs AFTER every step that needs the agent free.",
+      "credence": 0.45,
+      "provenance": "generalized_strategy"
+    },
+    {
+      "id": "prior_figure_ground_complement_is_delivery",
+      "kind": "goal_prior",
+      "reasoning_mode": "forward",
+      "trigger": "a SOLID shape whose footprint matches a congruent EMPTY slot/hole is perceived",
+      "operator": "hypothesize the win = SEAT the solid inside the slot (insertion / delivery); set that as the goal and pursue it. With N solids and N slots, expect a one-to-one assignment.",
+      "credence": 0.4,
+      "provenance": "generalized_strategy (shape-matching front-loads the win)"
+    },
+    {
+      "id": "prior_mark_signals_correspondence_and_role",
+      "kind": "perception_relation_prior",
+      "reasoning_mode": "forward",
+      "trigger": "a localized visual MARK (a sub-region of an entity's crop -- centre, border, colour patch, pattern) is SHARED across entities or VARIES between otherwise-similar entities",
+      "operator": "a mark is a RELATIONAL signal, NOT noise to summarize away into a dominant colour. (1) SHARED across entities of DIFFERENT kinds (a solid + a hollow slot, a token + a receptacle) => CORRESPONDENCE: a matched pair -- the marked filler/mover belongs in / fills / acts on the marked target; seed a delivery/pairing hypothesis (THIS cargo -> THOSE slots), which answers 'which cargo goes to which target'. (2) VARYING between entities of the SAME kind/shape => different ROLES; the odd-one-out is often the actor/controllable; seed distinct-role hypotheses. Carry the mark as a FIRST-CLASS crop attribute (entity identity = its full crop, never its dominant colour); GROUP entities by shared marks ACROSS shapes, SPLIT them by varying marks WITHIN a shape; confirm role + pairing by interaction.",
+      "credence": 0.4,
+      "provenance": "generalized_strategy (ka59: a black centre groups the block with the black-bordered holes = the delivery pair; the white-centre green is the odd-one-out = the actor). Supersedes prior_distinguishing_mark_encodes_role -- adds the CORRESPONDENCE direction + crop-based identity (a mark is relational, not just a same-shape role tag)."
+    }
+  ]
+}

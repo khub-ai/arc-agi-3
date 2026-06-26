@@ -56,24 +56,31 @@ simply begins every unseen game cold, as the competition requires.
 | `cognitive_os/` | COS engine core — world model, planning, knowledge index |
 | `tools/governor_audit/perception_loop_v2/` | the exploratory driver, perception substrate, recall, instincts |
 | `usecases/arc-agi-3/python/` | the ARC SDK bridge (`backends`, `dsl`, `dsl_executor`) |
-| `usecases/arc-agi-3/submission/` | the competition wrapper — `cos_agent`, the bridge, `cos_responder`, the model backends, `kaggle_entry`, and `kb_seed/` (the seeded general knowledge) |
+| `usecases/arc-agi-3/submission/` | the competition wrapper — `cos_agent`, the bridge, `cos_responder`, the model backends, `kaggle_entry`, `kb_seed/` (seeded general knowledge), and `kaggle/` (the submission starter) |
 | `ARC-AGI-3-Agents/` | the ARC‑AGI‑3 agent framework the submission plugs into |
 
 ## Running it
 
-### Offline — the competition path
+### The competition path (Kaggle, offline)
 
-The submission is a Kaggle notebook
-(`usecases/arc-agi-3/submission/kaggle_notebook_skeleton.py`) that runs with
-internet off and a GPU. In order, it:
+The submission is built by the starter in
+`usecases/arc-agi-3/submission/kaggle/`, aligned to the official
+[`ARC-AGI-3-Kaggle-Starter`](https://github.com/arcprize/ARC-AGI-3-Kaggle-Starter).
+The agent is `MyAgent(CosAgent)` in `kaggle/agent/my_agent.py`;
+`scripts/build_notebook.py` generates the Kaggle notebook. During Kaggle's
+competition re‑run that notebook:
 
-1. sets the offline / strict environment and puts the bundled code on `sys.path`;
-2. serves `gemma-4-31b-it` locally with vLLM;
-3. seeds a fresh KB from `kb_seed/`;
-4. builds a `CosAgent` and plays the eval games through the framework loop.
+1. installs the SDK from the competition's offline wheels;
+2. serves a quantized `gemma-4-31b` locally with vLLM;
+3. seeds a fresh, general‑only KB and puts the COS slice on `sys.path`;
+4. runs the framework's `main.py --agent myagent` against the competition's
+   `gateway:8001` sidecar, which serves the hidden games and records the play
+   into `submission.parquet`.
 
 The model is selected by a slug, so it is swappable — `vllm/<host>/<model>` for a
-local vLLM endpoint, or `ollama/<host>/<tag>` for Ollama.
+local vLLM endpoint, or `ollama/<host>/<tag>` for Ollama. See
+[`KAGGLE_SUBMISSION.md`](usecases/arc-agi-3/submission/KAGGLE_SUBMISSION.md) for
+the full mechanism.
 
 ### Local development
 

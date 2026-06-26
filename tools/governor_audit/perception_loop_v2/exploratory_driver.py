@@ -1275,6 +1275,75 @@ class ExploratoryDriver:
         vanished = [p for pi, p in enumerate(prev) if pi not in m_p]
         return moved, recoloured, appeared, vanished
 
+    @staticmethod
+    def _dedup_aliased_entities(entities, prefer_name=None):
+        """Collapse entity records that refer to the SAME physical object into one.
+
+        The world registry keys entities by NAME and ingest_perception appends a
+        new record whenever the VLM RENAMES a static target across turns (a hole
+        becomes hole_left, then left_hole, then goal_right_outline ...).  The
+        planner then sees ~20 'goal' entities that are 3 physical holes and spawns
+        a delivery per alias -- the goal explosion that makes the run flail.
+
+        Two records are the SAME physical object when their bboxes INTERIOR-overlap
+        (both axes > 0) AND their roles are compatible (equal, or one is generic).
+        Distinct objects sit at distinct locations and only ABUT at most (overlap
+        0), so two same-colour pieces, or two adjacent holes, are never merged --
+        identity is LOCATION + role, not the VLM's per-turn name.  The cluster's
+        representative is the record that (1) carries ``prefer_name`` (so the
+        tracked controllable keeps its name), else (2) has a specific, non-generic
+        role, else (3) the largest bbox (the most complete silhouette).  Entities
+        without a usable bbox pass through untouched.  Pure + game-agnostic."""
+        _GENERIC = {"object", "unknown", "marker", "decoration", "decor", ""}
+
+        def box(e):
+            b = e.get("bbox_ticks_turn1") or e.get("bbox")
+            return b if (isinstance(b, (list, tuple)) and len(b) >= 4) else None
+
+        def role(e):
+            return (e.get("role_hypothesis") or "").strip().lower()
+
+        def area(b):
+            return max(0, b[2] - b[0]) * max(0, b[3] - b[1])
+
+        def overlap(a, b):
+            return (min(a[2], b[2]) - max(a[0], b[0]) > 0
+                    and min(a[3], b[3]) - max(a[1], b[1]) > 0)
+
+        def compatible(ra, rb):
+            return ra == rb or ra in _GENERIC or rb in _GENERIC
+
+        items = [e for e in entities if box(e) is not None]
+        passthrough = [e for e in entities if box(e) is None]
+        n = len(items)
+        parent = list(range(n))
+
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                if (overlap(box(items[i]), box(items[j]))
+                        and compatible(role(items[i]), role(items[j]))):
+                    ri, rj = find(i), find(j)
+                    if ri != rj:
+                        parent[ri] = rj
+        groups = {}
+        for i in range(n):
+            groups.setdefault(find(i), []).append(i)
+        out = []
+        for idxs in groups.values():
+            rep = max(idxs, key=lambda i: (
+                items[i].get("name") == prefer_name and prefer_name is not None,
+                role(items[i]) not in _GENERIC,
+                area(box(items[i])),
+            ))
+            out.append(items[rep])
+        return out + passthrough
+
     def _substrate_response_facts(self) -> str:
         """Measured RESPONSE-ASYMMETRY facts over the delta history (pixel stage ->
         symbolic stage feed): which entities are SETTABLE (own click changed them
@@ -1353,6 +1422,28 @@ class ExploratoryDriver:
                 vals, counts = np.unique(v, return_counts=True)
                 return int(vals[counts.argmax()])
 
+            def ident(e):
+                # CROP-SIGNATURE identity = (dominant colour, the MARK colours).
+                # Object constancy must NOT key on the dominant colour alone: two
+                # same-dominant-colour pieces that differ by a MARK (a white centre
+                # = player vs a plain block) are DISTINCT objects, and keying on
+                # dominant colour alone lets the tracker swap their identities
+                # across turns (it locks the wrong green).  The mark already lives
+                # in the grouped sprite's bitmap (the white-centre component is a
+                # member); the dominant-colour reduction simply discards it.  Here
+                # we keep the FULL distinct-colour set so green_white and a plain
+                # green block get different identities and never interchange.  On a
+                # 64x64 exact-palette ARC frame every distinct value is a real
+                # palette colour (no anti-aliasing), so this needs no threshold.
+                m = np.asarray(e.bitmap)
+                v = m[m != -1]
+                if not v.size:
+                    return (-1, ())
+                vals, counts = np.unique(v, return_counts=True)
+                dom = int(vals[counts.argmax()])
+                marks = tuple(sorted(int(x) for x in vals if int(x) != dom))
+                return (dom, marks)
+
             # Match by DOMINANT COLOUR + size + nearest centroid (coarse object
             # constancy).  Colour cleanly separates the movable agents from the
             # ball / cursor / guides, and is immune to a white cursor-ring
@@ -1393,7 +1484,11 @@ class ExploratoryDriver:
             # Cache by id() — prev/curr hold the same entity objects throughout.
             _np_c = {id(e): npix(e) for e in prev + curr}
             _cn_c = {id(e): cen(e) for e in prev + curr}
-            _co_c = {id(e): colour(e) for e in prev + curr}
+            # MATCH on the crop signature (dominant + mark), NOT dominant colour
+            # alone, so two same-colour pieces that differ by a mark keep distinct
+            # identities across the step.  Narration below still uses the int
+            # `colour()` for the recolour hex.
+            _co_c = {id(e): ident(e) for e in prev + curr}
             moved, recoloured, appeared, vanished = \
                 ExploratoryDriver._classify_object_deltas(
                     prev, curr,
@@ -5139,6 +5234,12 @@ class ExploratoryDriver:
             for r in self.world.entities.values()
             if r.current_bbox is not None
         ]
+        # Collapse same-physical-object aliases (the VLM renames a static target
+        # across turns -> the registry accumulates N records for one hole) so the
+        # planner sees the real objects, not a goal per alias.  Keeps the tracked
+        # controllable's name; distinct objects (different locations) are untouched.
+        entities_for_actor = self._dedup_aliased_entities(
+            entities_for_actor, prefer_name=getattr(self, "_controllable_name", None))
         # NOTE: a null agent_cell (non-grid / continuous-arena game) no longer
         # halts the run.  The grid planner + cell_actor below only run when a
         # grid agent_cell exists; otherwise the autonomous curiosity probe
@@ -8348,12 +8449,57 @@ class ExploratoryDriver:
             # achieved leaf -- the tree-driven executor skips infeasible alternatives
             # (a direct walk through a barrier) and descends an AND op's first unmet
             # precondition.  This is MEA developing + showing the backward chain.
+            # CARGO matching (figure-ground complement prior): a slot is filled by
+            # SEATING the object whose footprint is congruent with it -- NOT by the
+            # agent walking in.  Without this MEA delivers the MOVER to the slot
+            # (it walks the controllable into the hole, which does not win); pairing
+            # each slot with its matching cargo makes MEA push THAT cargo in, with
+            # the mover as the pusher.  Pairing is congruent footprint (grid
+            # tolerance) + nearest, assigned one-to-one (N solids <-> N slots).  A
+            # slot with no congruent cargo falls back to a direct mover delivery.
+            def _dims(bb):
+                return (bb[2] - bb[0], bb[3] - bb[1])
+            cargo_cands = []
+            for e in (entities_for_actor or []):
+                nm = e.get("name")
+                bb = e.get("bbox_ticks_turn1") or e.get("bbox")
+                if nm == cn or not (bb and len(bb) >= 4):
+                    continue
+                if any(w in _tags(e) for w in TARGETY):      # a slot is not its own cargo
+                    continue
+                cargo_cands.append(e)
+
+            def _match_cargo(gbx, used):
+                gh, gw = _dims(gbx)
+                gcen = (round((gbx[0] + gbx[2]) / 2), round((gbx[1] + gbx[3]) / 2))
+                best, bestd = None, None
+                for e in cargo_cands:
+                    if id(e) in used:
+                        continue
+                    cb = e.get("bbox_ticks_turn1") or e.get("bbox")
+                    ch, cw = _dims(cb)
+                    if abs(ch - gh) > 1 or abs(cw - gw) > 1:  # congruent footprint
+                        continue
+                    ccen = (round((cb[0] + cb[2]) / 2), round((cb[1] + cb[3]) / 2))
+                    d = abs(ccen[0] - gcen[0]) + abs(ccen[1] - gcen[1])
+                    if bestd is None or d < bestd:
+                        best, bestd = e, d
+                return best
+
+            used_cargo = set()
             deliveries = []
             for _dist, g in goals:
                 gbx = g.get("bbox_ticks_turn1") or g.get("bbox")
-                deliveries.append({"mover": cur,
-                                   "goal": {"bbox_ticks_turn1": [int(x) for x in gbx],
-                                            "name": g.get("name")}})
+                delivery = {"mover": cur,
+                            "goal": {"bbox_ticks_turn1": [int(x) for x in gbx],
+                                     "name": g.get("name")}}
+                cargo = _match_cargo(gbx, used_cargo)
+                if cargo is not None:
+                    used_cargo.add(id(cargo))
+                    cbx = cargo.get("bbox_ticks_turn1") or cargo.get("bbox")
+                    delivery["cargo"] = {"bbox_ticks_turn1": [int(x) for x in cbx],
+                                         "name": cargo.get("name")}
+                deliveries.append(delivery)
             root = mea.goal_tree_conjunctive(deliveries, ctx)
             try:
                 self._mea_tree = "\n".join(_me.render_tree(root))

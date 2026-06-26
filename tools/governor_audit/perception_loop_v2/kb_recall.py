@@ -178,6 +178,16 @@ def _candidate_pool(world) -> List[dict]:
                          "id": g.get("id", "")})
     except Exception:
         pass
+    # GAME-AGNOSTIC planning priors: structured means-ends / goal / perception
+    # priors (act-through-intermediary, figure-ground-complement = delivery, a
+    # mark = correspondence/role).  Forward priors are declarative so they
+    # front-load a win hypothesis at level start; backward operators surface on
+    # match / when stuck.  No origin game -> admitted on every game.
+    try:
+        from planning_priors import as_pool_entries as _planning_entries  # noqa: E402
+        pool.extend(_planning_entries())
+    except Exception:
+        pass
     try:
         from operator_kb import load_all_operators, record_origin_game  # noqa: E402
         for r in load_all_operators():

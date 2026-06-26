@@ -280,15 +280,55 @@ class MeansEnds:
             return {"kind": "OP", "dir": first, "via": None, "target_cell": None}
         return None
 
-    def goal_tree(self, current, goal, context=None, _depth: int = 0, _desc=None):
+    def goal_tree(self, current, goal, context=None, _depth: int = 0, _desc=None,
+                  cargo=None):
         """Build the explicit AND-OR backward-chain tree for reducing current -> goal:
         a GoalNode (OR over operator alternatives), each OpNode (AND over its
         preconditions).  At a REACHABILITY goal the OR alternatives are [the DIRECT
         walk -- kept for visibility, marked infeasible because a barrier blocks it] +
         [VIA each pushable INTERMEDIARY -> AND(reach its push side, push it)].  This is
         the backward chain the substrate can SHOW (render_tree) and whose alternatives
-        it can EXPLORE when one fails.  Depth-guarded; fully guarded."""
+        it can EXPLORE when one fails.  Depth-guarded; fully guarded.
+
+        ``cargo`` (a {name, bbox_ticks_turn1} entity) makes this a CARGO-FILL goal:
+        the slot is filled by SEATING the cargo, not by the agent walking in.  Then
+        the reduction is unconditionally 'push the cargo into the slot' (reach its
+        push side, push it) -- the agent walking into the slot is kept only as an
+        INFEASIBLE alternative (it would deliver the wrong object).  This is what lets
+        MEA pursue 'push the block into the hole' even when the agent COULD reach the
+        hole itself; without it the planner walks the agent into the slot and the
+        run stalls (the seeded figure_ground_complement / mark-correspondence priors,
+        made executable)."""
         desc = _desc or (goal.get("name") if isinstance(goal, dict) else None) or "goal"
+        gb0 = goal.get("bbox_ticks_turn1") if isinstance(goal, dict) else None
+        if cargo is not None and gb0 and isinstance(cargo, dict):
+            cb = cargo.get("bbox_ticks_turn1")
+            if cb:
+                gc0 = _bbox_centre(gb0)
+                cc = _bbox_centre(cb)
+                if abs(cc[0] - gc0[0]) + abs(cc[1] - gc0[1]) <= _POS_TOL:
+                    return GoalNode(desc, [], achieved=True)     # cargo already seated
+                if _depth < 6:
+                    move_step = int((context or {}).get("move_step") or 1)
+                    push_side, dirname = _push_geometry(cb, gc0, move_step)
+                    nm = cargo.get("name") or "cargo"
+                    reach_goal = {"name": f"push side of {nm}",
+                                  "bbox_ticks_turn1": [push_side[0] - 1, push_side[1] - 1,
+                                                       push_side[0] + 1, push_side[1] + 1]}
+                    reach_sub = self.goal_tree(current, reach_goal, context, _depth + 1,
+                                               _desc=f"reach push side of {nm}")
+                    push_sub = GoalNode(
+                        f"push {nm} {dirname} into {desc}",
+                        [OpNode(f"PUSH_{dirname}",
+                                action={"kind": "PUSH", "dir": dirname, "via": nm})])
+                    ops = [
+                        OpNode("WALK", action={"kind": "WALK", "target_cell": gc0},
+                               feasible=False,
+                               note=f"the slot is filled by {nm}, not the agent"),
+                        OpNode("VIA_INTERMEDIARY", preconds=[reach_sub, push_sub],
+                               note=f"seat cargo {nm}"),
+                    ]
+                    return GoalNode(desc, ops)
         try:
             diffs = self.analyze(current, goal)
         except Exception:
@@ -339,7 +379,8 @@ class MeansEnds:
         for dv in deliveries:
             g = dv.get("goal")
             nm = g.get("name") if isinstance(g, dict) else "slot"
-            subs.append(self.goal_tree(dv.get("mover"), g, context, _desc=f"fill {nm}"))
+            subs.append(self.goal_tree(dv.get("mover"), g, context, _desc=f"fill {nm}",
+                                       cargo=dv.get("cargo")))
         subs.sort(key=lambda gn: 0 if _goal_keeps_agent_free(gn) else 1)
         return GoalNode(win_desc, [OpNode("fill_all_slots", preconds=subs)])
 
@@ -357,6 +398,24 @@ class MeansEnds:
 
 def _bbox_centre(bb):
     return (round((bb[0] + bb[2]) / 2), round((bb[1] + bb[3]) / 2))
+
+
+def _push_geometry(inter_bbox, goal_centre, move_step: int = 1):
+    """Where the agent must STAND and which way to PUSH to drive ``inter_bbox``
+    toward ``goal_centre``.  The push direction is the dominant axis from the
+    intermediary to the goal; the agent stands one clear cell on the OPPOSITE
+    side.  Returns ``(push_side_cell, dirname)``.  The single shared geometry for
+    both the all-intermediaries scan and an explicit cargo delivery."""
+    oc = _bbox_centre(inter_bbox)
+    dr, dc = goal_centre[0] - oc[0], goal_centre[1] - oc[1]
+    if abs(dc) >= abs(dr):
+        dirname, unit = ("RIGHT", (0, 1)) if dc > 0 else ("LEFT", (0, -1))
+    else:
+        dirname, unit = ("DOWN", (1, 0)) if dr > 0 else ("UP", (-1, 0))
+    half = int(max(inter_bbox[2] - inter_bbox[0], inter_bbox[3] - inter_bbox[1]) / 2.0)
+    off = half + max(1, int(move_step or 1))
+    push_side = (oc[0] - unit[0] * off, oc[1] - unit[1] * off)
+    return push_side, dirname
 
 
 def expand_change_modality(mea, diff, current, goal, context, depth) -> List[str]:
@@ -390,16 +449,7 @@ def _all_intermediaries(current, goal, context):
                    + abs(_bbox_centre(o["bbox_ticks_turn1"])[1] - ac[1]))
     out = []
     for inter in cands:
-        oc = _bbox_centre(inter["bbox_ticks_turn1"])
-        dr, dc = gc[0] - oc[0], gc[1] - oc[1]               # push DIRECTION: intermediary -> goal
-        if abs(dc) >= abs(dr):
-            dirname, unit = ("RIGHT", (0, 1)) if dc > 0 else ("LEFT", (0, -1))
-        else:
-            dirname, unit = ("DOWN", (1, 0)) if dr > 0 else ("UP", (-1, 0))
-        ob = inter["bbox_ticks_turn1"]
-        half = int(max(ob[2] - ob[0], ob[3] - ob[1]) / 2.0)
-        off = half + max(1, move_step)                      # the agent stands one clear cell off
-        push_side = (oc[0] - unit[0] * off, oc[1] - unit[1] * off)   # opposite the goal
+        push_side, dirname = _push_geometry(inter["bbox_ticks_turn1"], gc, move_step)
         out.append((inter, push_side, dirname))
     return out
 
