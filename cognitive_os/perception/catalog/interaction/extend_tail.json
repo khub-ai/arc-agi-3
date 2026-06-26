@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "extend_tail",
+  "primitive_kind": "interaction",
+  "description":    "Grows the piercer_tail by one segment in its extension direction. If growth crosses a movable_block, the block becomes carried by the device.",
+  "vlm_recognition_hints": [
+    "An action that lengthens the piercer_tail's bbox in the extension direction (typically rightward) by one segment.",
+    "If a movable_block was in the growth path, it now moves with the device on subsequent motions (visible by checking the block's position vs the device's position in the following frame).",
+    "Distinct from move_device — extend_tail changes tail length, not device position."
+  ],
+  "anchored_in_samples": ["sk48_1of7"]
+}

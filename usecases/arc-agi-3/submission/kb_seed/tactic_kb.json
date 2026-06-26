@@ -1,0 +1,66 @@
+{
+ "tactics": [
+  {
+   "tactic_id": "selective_side_swipe",
+   "name": "Selective side-swipe via column-band sweep",
+   "intent": "Displace ONE of several co-located targets out of a shared row (or column) WITHOUT engaging it, so the remaining targets can be approached individually.",
+   "preconditions": {
+    "min_co_located_entities_same_row": 2,
+    "agent_has_extension_tool": true,
+    "agent_row_distinct_from_targets": true
+   },
+   "abstract_steps": [
+    "Extend the arm / tool until its column band overlaps ONLY the target entity to displace — excludes the neighbouring entities you want to leave in place.  This is the SELECTIVE band step.",
+    "Move the agent perpendicular to the tool axis (toward the target row).  Continue stepping until the tool's row crosses the target row.",
+    "On the crossing turn the tool sweeps the in-band target perpendicular to itself.  Targets outside the column band are unaffected."
+   ],
+   "expected_outcome": "Targeted entity displaced perpendicular to the arm axis by one sweep step; other co-located entities remain at their original positions.",
+   "examples": [
+    {
+     "game_id": "sk48",
+     "level": 1,
+     "turn_range": [
+      126,
+      141
+     ],
+     "actions": [
+      "ACTION4",
+      "ACTION4",
+      "ACTION4",
+      "ACTION1",
+      "ACTION1",
+      "ACTION1"
+     ],
+     "rationale_summary": "extended arm tip to col 35 covering only block_green at c30-33; rose agent until arm crossed block row 13",
+     "outcome_summary": "block_green moved row 13 -> row 7; block_blue / orange / red stayed at row 13"
+    },
+    {
+     "game_id": "sk48",
+     "level": 1,
+     "turn_range": [
+      17,
+      29
+     ],
+     "actions": [
+      "ACTION4",
+      "ACTION4",
+      "ACTION4",
+      "ACTION4",
+      "ACTION4",
+      "ACTION4",
+      "ACTION1",
+      "ACTION1",
+      "ACTION1",
+      "ACTION3",
+      "ACTION1"
+     ],
+     "rationale_summary": "BULK variant: extended arm to col 47 covering green+blue+orange at row 25-29 (excluding red at col 48). Rose agent — at crossing, three blocks swept up together while red stayed.",
+     "outcome_summary": "Three blocks (green/blue/orange) displaced row 13 -> row 7 in ONE ACTION1; red stayed alone at row 13"
+    }
+   ],
+   "n_successes": 2,
+   "n_failures": 0,
+   "credence": 0.75
+  }
+ ]
+}

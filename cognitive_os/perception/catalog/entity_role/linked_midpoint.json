@@ -1,0 +1,24 @@
+{
+  "primitive_id": "linked_midpoint",
+  "primitive_kind": "entity_role",
+  "description": "A passive entity that sits on the geometric line between two endpoints (movable_pin and anchor_endpoint) and moves automatically to maintain that constraint. The agent cannot move the linked_midpoint directly — it slides as a function of the endpoints' positions.",
+  "motion_class": "follower",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Middle ball in a three-ball collinear arrangement, often visibly connected to neighbours by thin lines (rigid_link).",
+    "Position is determined by the other two balls; it has no independent action.",
+    "Visually distinct palette / centre marker so the player can identify it as the target subject (often the entity that must overlap a target_slot to win)."
+  ],
+  "interaction_signature": {
+    "trigger": "(passive — moves when movable_pin or anchor_endpoint moves)",
+    "effect": "linked_midpoint slides along the line connecting the endpoints",
+    "observable_change": "midpoint's position changes between frames when either endpoint moves"
+  },
+  "planner_consumption": {
+    "node_kind": "VERIFY_MATCH (target of overlap_match)",
+    "intent": "geometric constraint solver — given target position, derive endpoint positions"
+  },
+  "anchored_in_samples": [
+    "r11l_1of6"
+  ]
+}

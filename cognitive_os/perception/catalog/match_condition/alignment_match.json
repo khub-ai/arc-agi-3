@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "alignment_match",
+  "primitive_kind": "match_condition",
+  "description":    "A working entity (working_glyph) must match a reference entity (reference_glyph) on one or more properties (colour, shape, orientation). The agent cycles state via triggers until match holds.",
+  "vlm_recognition_hints": [
+    "Two visually-similar entities exist on the frame in mirror positions (one is the 'goal pattern', the other the 'editable instance').",
+    "State-cycle triggers visible nearby; their effect mutates one entity's properties.",
+    "Win is signalled when both entities visually agree on the relevant dimensions."
+  ],
+  "anchored_in_samples": ["ls20_4of7"]
+}

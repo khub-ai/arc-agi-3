@@ -1,0 +1,10 @@
+{
+  "primitive_id":   "advance_bracket",
+  "primitive_kind": "interaction",
+  "description":    "Moves the selection_bracket to the next position in the working_sequence. Paired with cycle_at_bracket — together they let the player navigate and edit a sequence.",
+  "vlm_recognition_hints": [
+    "An action that shifts the selection_bracket's bbox by one position (one cell width) along the sequence direction.",
+    "Often a left/right or next/previous pair of actions; the agent navigates with these between cycling at each position."
+  ],
+  "anchored_in_samples": ["tr87_1of7"]
+}

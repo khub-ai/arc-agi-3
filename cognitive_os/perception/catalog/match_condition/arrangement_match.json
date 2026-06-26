@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "arrangement_match",
+  "primitive_kind": "match_condition",
+  "description":    "The set of working entities must be arranged in a specific order or pattern matching a visible reference_arrangement. Order, palette, and relative position all matter.",
+  "vlm_recognition_hints": [
+    "A reference area shows a specific arrangement of coloured / patterned elements.",
+    "Multiple working entities exist that can be repositioned by the agent's actions.",
+    "Win is when the working entities' arrangement equals the reference arrangement."
+  ],
+  "anchored_in_samples": ["sk48_1of7"]
+}

@@ -1,0 +1,24 @@
+{
+  "primitive_id": "life_indicator",
+  "primitive_kind": "entity_role",
+  "description": "A HUD readout showing remaining lives — usually a row of small repeated icons (dots, hearts, ships) at the edge of the frame. Decreases when the agent dies.",
+  "motion_class": "static",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Small repeated icons in a row, usually 2-5 of them at the edge of the frame.",
+    "Decreases by one icon each time the agent dies (visible across game-over frames).",
+    "Distinct from budget_meter because life_indicator is a DISCRETE count (icons), not a continuous bar."
+  ],
+  "interaction_signature": {
+    "trigger": "agent dies",
+    "effect": "n/a (output only)",
+    "observable_change": "one fewer icon visible after death"
+  },
+  "planner_consumption": {
+    "node_kind": "(none — informational only)",
+    "intent": "track risk envelope; agent should reserve lives if count is low"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ]
+}

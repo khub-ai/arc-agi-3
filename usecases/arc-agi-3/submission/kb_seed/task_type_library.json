@@ -1,0 +1,237 @@
+{
+ "schema_version": "1.0",
+ "embedding_mode": "feature_vector_12",
+ "embedding_dim": 12,
+ "types": [
+  {
+   "type_id": "arc-agi3/navigation",
+   "domain": "arc-agi-3",
+   "display_name": "Navigation maze",
+   "signature_profile": {
+    "has_movement": true,
+    "spatial_action_count_max": 0,
+    "_features": {
+     "has_movement": true,
+     "max_action_diff_cells": 20.0,
+     "min_action_diff_cells": 0.0,
+     "has_frame_divider": false,
+     "divider_row_frac": 0.5,
+     "palette_count": 14.0,
+     "action_count": 4.0,
+     "requires_coordinates": false,
+     "spatial_action_count": 0.0,
+     "element_action_count": 4.0,
+     "null_action_count": 0.0,
+     "top_bottom_component_ratio": 1.0
+    }
+   },
+   "learned_facts_template": {},
+   "canonical_concepts": {
+    "move_up": "action that moves agent toward lower row indices",
+    "move_down": "action that moves agent toward higher row indices",
+    "move_left": "action that moves agent toward lower col indices",
+    "move_right": "action that moves agent toward higher col indices"
+   },
+   "command_constraints": {
+    "MOVE_TO": "primary navigation command",
+    "PLAN_ROUTE": "use for multi-trigger routes",
+    "EXPLORE_TRIGGER": "use to discover trigger visit thresholds",
+    "PERFORM_ACTION": "available but rarely needed alone",
+    "SYSTEMATIC_EXPLORE": "NOT applicable — this is a navigation game"
+   },
+   "base_confidence": 0.9,
+   "description": "agent moves spatially with directional actions. game requires navigation through a grid. element-level changes: actions change up to 20 cells. palette_count=14, action_count=4.",
+   "vector": [
+    0.6606157422065735,
+    0.0660615786910057,
+    0.0,
+    0.0,
+    0.33030787110328674,
+    0.2890194058418274,
+    0.2642463147640228,
+    0.0,
+    0.0,
+    0.5284926295280457,
+    0.0,
+    0.1321231573820114
+   ],
+   "member_instance_ids": [],
+   "provenance": {
+    "created_at": "2026-04-22T00:00:00Z",
+    "created_by": "seed"
+   }
+  },
+  {
+   "type_id": "arc-agi3/tile-cycle",
+   "domain": "arc-agi-3",
+   "display_name": "Tile-cycle puzzle",
+   "signature_profile": {
+    "has_movement": false,
+    "has_frame_divider": true,
+    "spatial_action_count_max": 0,
+    "max_diff_cells_max": 40,
+    "_features": {
+     "has_movement": false,
+     "max_action_diff_cells": 15.0,
+     "min_action_diff_cells": 0.0,
+     "has_frame_divider": true,
+     "divider_row_frac": 0.83,
+     "palette_count": 14.0,
+     "action_count": 4.0,
+     "requires_coordinates": false,
+     "spatial_action_count": 0.0,
+     "element_action_count": 4.0,
+     "null_action_count": 0.0,
+     "top_bottom_component_ratio": 4.0
+    }
+   },
+   "learned_facts_template": {},
+   "canonical_concepts": {
+    "cycle_action": "action that advances a tile through its visual variants",
+    "cycle_back_action": "action that reverses a tile through its variants",
+    "selector_next": "action that moves selector to next tile",
+    "selector_prev": "action that moves selector to previous tile"
+   },
+   "command_constraints": {
+    "SYSTEMATIC_EXPLORE": "PREFERRED with match_to_reference=true once cycle_action and selector_action are confirmed",
+    "SCRIPTED_PROBE": "use to confirm cycle_action / selector_action",
+    "MOVE_TO": "NOT applicable — no movement",
+    "PLAN_ROUTE": "NOT applicable — no movement"
+   },
+   "base_confidence": 0.92,
+   "description": "no agent movement — state-change or click game. element-level changes: actions change up to 15 cells. frame has horizontal reference/working area divider at row ~83%. palette_count=14, action_count=4.",
+   "vector": [
+    0.0,
+    0.04112488031387329,
+    0.0,
+    0.5483316779136658,
+    0.45511528849601746,
+    0.23989512026309967,
+    0.21933268010616302,
+    0.0,
+    0.0,
+    0.43866536021232605,
+    0.0,
+    0.43866536021232605
+   ],
+   "member_instance_ids": [],
+   "provenance": {
+    "created_at": "2026-04-22T00:00:00Z",
+    "created_by": "seed"
+   }
+  },
+  {
+   "type_id": "arc-agi3/spatial-structure",
+   "domain": "arc-agi-3",
+   "display_name": "Spatial-structure puzzle",
+   "signature_profile": {
+    "has_movement": false,
+    "spatial_action_count_min": 2,
+    "max_diff_cells_min": 40,
+    "_features": {
+     "has_movement": false,
+     "max_action_diff_cells": 96.0,
+     "min_action_diff_cells": 0.0,
+     "has_frame_divider": true,
+     "divider_row_frac": 0.83,
+     "palette_count": 14.0,
+     "action_count": 4.0,
+     "requires_coordinates": false,
+     "spatial_action_count": 2.0,
+     "element_action_count": 2.0,
+     "null_action_count": 0.0,
+     "top_bottom_component_ratio": 4.0
+    }
+   },
+   "learned_facts_template": {},
+   "canonical_concepts": {
+    "spatial_move": "action that translates the whole structure spatially",
+    "extend_action": "action that extends the structure by one segment",
+    "retract_action": "action that retracts the structure by one segment"
+   },
+   "command_constraints": {
+    "SCRIPTED_PROBE": "primary exploration tool",
+    "PERFORM_ACTION": "use for spatial movement and extension",
+    "SYSTEMATIC_EXPLORE": "NOT applicable — this is a spatial positioning game, not a tile-cycling game.  Do NOT issue this command.",
+    "MOVE_TO": "NOT applicable — no navigation agent",
+    "PLAN_ROUTE": "NOT applicable — no navigation agent"
+   },
+   "base_confidence": 0.88,
+   "description": "no agent movement — state-change or click game. whole-structure spatial movement: 2.0 action(s) change >40 cells each. frame has horizontal reference/working area divider at row ~83%. palette_count=14, action_count=4.",
+   "vector": [
+    0.0,
+    0.2670499384403229,
+    0.0,
+    0.5563540458679199,
+    0.4617738723754883,
+    0.24340489506721497,
+    0.22254163026809692,
+    0.0,
+    0.22254163026809692,
+    0.22254163026809692,
+    0.0,
+    0.44508326053619385
+   ],
+   "member_instance_ids": [],
+   "provenance": {
+    "created_at": "2026-04-22T00:00:00Z",
+    "created_by": "seed"
+   }
+  },
+  {
+   "type_id": "arc-agi3/click-placement",
+   "domain": "arc-agi-3",
+   "display_name": "Click-placement puzzle",
+   "signature_profile": {
+    "has_movement": false,
+    "requires_coordinates": true,
+    "null_action_count_min": 1,
+    "_features": {
+     "has_movement": false,
+     "max_action_diff_cells": 0.0,
+     "min_action_diff_cells": 0.0,
+     "has_frame_divider": false,
+     "divider_row_frac": 0.5,
+     "palette_count": 14.0,
+     "action_count": 4.0,
+     "requires_coordinates": true,
+     "spatial_action_count": 0.0,
+     "element_action_count": 0.0,
+     "null_action_count": 4.0,
+     "top_bottom_component_ratio": 1.0
+    }
+   },
+   "learned_facts_template": {},
+   "canonical_concepts": {
+    "click_action": "action that fires at a pixel coordinate"
+   },
+   "command_constraints": {
+    "PERFORM_ACTION": "REQUIRED with explicit x,y coordinates; probe each salient element by clicking on it",
+    "SCRIPTED_PROBE": "use to test PERFORM_ACTION with coordinates at candidate targets",
+    "SYSTEMATIC_EXPLORE": "NOT applicable",
+    "MOVE_TO": "NOT applicable — no movement"
+   },
+   "base_confidence": 0.85,
+   "description": "no agent movement — state-change or click game. minimal pixel changes from no-data actions. all actions require pixel coordinates (no-data probes all failed). palette_count=14, action_count=4.",
+   "vector": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.33103102445602417,
+    0.28965213894844055,
+    0.2648248076438904,
+    0.6620620489120483,
+    0.0,
+    0.0,
+    0.5296496152877808,
+    0.1324124038219452
+   ],
+   "member_instance_ids": [],
+   "provenance": {
+    "created_at": "2026-04-22T00:00:00Z",
+    "created_by": "seed"
+   }
+  }
+ ]
+}

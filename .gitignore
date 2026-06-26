@@ -53,3 +53,6 @@ recordings/
 # ./environment_files/ on first Arcade.make() call.  Regenerated
 # on demand from the API; never belongs in version control.
 environment_files/
+
+# Local agent/editor config
+.claude/

@@ -1,0 +1,35 @@
+{
+  "primitive_id": "reference_glyph",
+  "primitive_kind": "entity_role",
+  "description": "A static entity that serves as the target pattern for an alignment-style win condition. The working_glyph must be cycled until it matches the reference_glyph on the relevant dimension(s) (colour, shape, orientation).",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Visually similar to the working_glyph in shape family but typically smaller and simpler (the reference is a 'template').",
+    "Does NOT change between frames (modulo agent occlusion); the working_glyph mutates while the reference holds steady.",
+    "Often inside its own wall-enclosed chamber, mirroring the working_glyph's chamber on the other side of the level."
+  ],
+  "interaction_signature": {
+    "trigger": "(none — reference_glyph is static)",
+    "effect": "n/a",
+    "observable_change": "stays unchanged across all frames"
+  },
+  "planner_consumption": {
+    "node_kind": "VERIFY_MATCH (parent of alignment dims)",
+    "intent": "compare working_glyph against this reference; trigger state cycles until match"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ],
+  "extension_notes": "The pairing between working_glyph and reference_glyph is operator-confirmed in the ground truth via `related_to`. The VLM should recognise the pair from visual similarity; perception layer then propagates the relationship.",
+  "confusable_with": [
+    {
+      "primitive_id": "working_sequence",
+      "note": "reference_glyph is small + immovable; working_sequence is a horizontal row of editable icons."
+    },
+    {
+      "primitive_id": "reference_pair_member",
+      "note": "reference_pair_member is one half of a paired card (top half above bottom half); reference_glyph is unpaired."
+    }
+  ]
+}

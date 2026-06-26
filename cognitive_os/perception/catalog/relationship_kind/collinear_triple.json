@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "collinear_triple",
+  "primitive_kind": "relationship_kind",
+  "description":    "Three entities (typically two endpoints + a midpoint) constrained to lie on a straight line. Moving an endpoint causes the midpoint to slide along the line to maintain collinearity. Visualised by rigid_link lines connecting them.",
+  "vlm_recognition_hints": [
+    "Three discrete balls / dots arranged in an approximate straight line, with thin connecting lines between them.",
+    "Two of the three are interactable (one movable_pin, one anchor_endpoint); the third (linked_midpoint) is passive.",
+    "When one endpoint moves between frames, all three positions update to maintain the line."
+  ],
+  "anchored_in_samples": ["r11l_1of6"]
+}

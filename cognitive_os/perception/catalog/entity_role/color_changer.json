@@ -1,0 +1,25 @@
+{
+  "primitive_id": "color_changer",
+  "primitive_kind": "entity_role",
+  "description": "A trigger entity the agent visits to cycle the working_glyph's colour / palette by one step. Distinct from shape_changer because the property mutated is chromatic, not geometric.",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Often a multi-colour marker showing the available palettes (a 'colour wheel' hint).",
+    "Positioned in the navigable area; the agent visits it to cycle.",
+    "Visually distinct from launchers (which are typically monochrome strips) and from shape_changers (which are monochrome small markers)."
+  ],
+  "interaction_signature": {
+    "trigger": "agent visits the color_changer cell",
+    "effect": "the working_glyph's palette advances one step in its cycle",
+    "observable_change": "working_glyph's colour changes between frames while its shape remains the same"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_CELL (then VERIFY_MATCH on color dim)",
+    "directive_template": "MOVE_TO(color_changer.position); confirm working_glyph.color advanced"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ],
+  "extension_notes": "Often paired with shape_changer; the VLM should recognise the pair as a two-dimensional alignment puzzle."
+}

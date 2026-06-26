@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "complementary_shape_pair",
+  "primitive_kind": "relationship_kind",
+  "description":    "Two entities of complementary shapes (filled vs hollow, peg vs hole) that visually 'belong together'. Usually share palette. Often paired with an overlap_match win condition where one must be positioned to fit inside the other.",
+  "vlm_recognition_hints": [
+    "One entity is solid / filled; the other has a hollow interior or matching contour.",
+    "Shared palette is a strong cue — the same colour signals 'these go together'.",
+    "Size matters: the hollow entity's interior is sized to receive the filled one."
+  ],
+  "anchored_in_samples": ["r11l_1of6"]
+}

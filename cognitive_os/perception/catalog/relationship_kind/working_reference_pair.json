@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "working_reference_pair",
+  "primitive_kind": "relationship_kind",
+  "description":    "Two entities visually similar (same shape family, often shared palette) where one (working) is mutable by the agent's actions and the other (reference) is the static target. Defines the alignment_match win condition.",
+  "vlm_recognition_hints": [
+    "Two entities with high visual similarity but at different positions on the frame.",
+    "One is typically larger and more detailed (working); the other smaller and simpler (reference).",
+    "Often in mirrored chambers or symmetric layout positions."
+  ],
+  "anchored_in_samples": ["ls20_4of7"]
+}

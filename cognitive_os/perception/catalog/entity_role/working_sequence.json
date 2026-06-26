@@ -1,0 +1,30 @@
+{
+  "primitive_id": "working_sequence",
+  "primitive_kind": "entity_role",
+  "description": "An editable sequence of positions the agent fills in to match a target. Each position holds one entity from a closed vocabulary; the agent cycles through variants at the bracketed position using the cycle interaction.",
+  "motion_class": "static",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Wider rectangular region with internal sub-positions visible as repeated cells or icons.",
+    "Usually positioned below or beside the reference set; visual prominence suggests it's the 'fillable' area.",
+    "A selection_bracket framing one of the sub-positions indicates which slot is currently editable."
+  ],
+  "interaction_signature": {
+    "trigger": "cycle_at_bracket action",
+    "effect": "icon at the bracketed sub-position changes to the next variant",
+    "observable_change": "bracketed sub-position's content visually swaps between frames"
+  },
+  "planner_consumption": {
+    "node_kind": "VERIFY_MATCH",
+    "intent": "find the variant sequence at each sub-position that matches one of the reference pairs"
+  },
+  "anchored_in_samples": [
+    "tr87_1of7"
+  ],
+  "confusable_with": [
+    {
+      "primitive_id": "reference_glyph",
+      "note": "working_sequence is the editable sequence the agent modifies; reference_glyph is a small immovable single-glyph target."
+    }
+  ]
+}

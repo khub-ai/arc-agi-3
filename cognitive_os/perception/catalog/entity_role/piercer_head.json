@@ -1,0 +1,24 @@
+{
+  "primitive_id": "piercer_head",
+  "primitive_kind": "entity_role",
+  "description": "The controllable head of a physical piercing device. Connected to a piercer_tail that extends from one side. The whole device (head + tail) moves together as a unit; the agent extends the tail and moves the device.",
+  "motion_class": "agent_controlled",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "A bordered box (often pink-rimmed or coloured-outlined) with a coherent rectangular shape.",
+    "Has a tail extending from one side — visually attached, not detached.",
+    "Often has internal markings (eyes, dots) suggesting it's a 'character' or 'mouth' from which the tail comes."
+  ],
+  "interaction_signature": {
+    "trigger": "move_vertical action (moves the whole device)",
+    "effect": "device position shifts; tail orientation stays connected",
+    "observable_change": "head + tail both translate together between frames"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_CELL (where the device head should land)",
+    "intent": "controllable anchor of the device"
+  },
+  "anchored_in_samples": [
+    "sk48_1of7"
+  ]
+}

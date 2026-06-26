@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "pierce_and_carry",
+  "primitive_kind": "state_change_effect",
+  "description":    "An entity (carrier) extends to pass through another entity (cargo); after the pierce, the cargo is bound to the carrier and translates together on subsequent motions.",
+  "vlm_recognition_hints": [
+    "Before the pierce: cargo independent (stays put while carrier moves).",
+    "Pierce action: carrier's bbox crosses through cargo's bbox.",
+    "After the pierce: cargo moves with carrier on subsequent motions."
+  ],
+  "anchored_in_samples": ["sk48_1of7"]
+}

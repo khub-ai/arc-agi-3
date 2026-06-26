@@ -1,0 +1,88 @@
+{
+  "game_id": "bp35",
+  "_comment": "Per-game knowledge for bp35.  `universal_roles` are cross-game (agent + backgrounds).  `game_roles` are cross-level — the four foreground roles (consumable / hazard / hud / win_marker) are declared once with their matchers and default projection.  Per-level `levels.<lc>` carries only what genuinely varies: truth_codes (each level's labelling convention), background_projection (bbox vs pixel), and projection_overrides (the hazard and HUD entities are compact sprites in lc=0 but extended strips in lc=1, so their projection rebinds at lc=1).  Visual-template matchers reference per-game templates in knowledge/templates/bp35.json; templates are LEARNED — either from aggregator-corroborated live-trial behaviour or from operator-seeded ground truth (seed_templates_from_truth.py).  No game-specific code anywhere; this file plus the template store fully specifies bp35 perception.",
+  "universal_roles": [
+    {
+      "role": "agent",
+      "matcher": { "type": "harness_signal", "signal": "agent_position" },
+      "projection_mode": "centroid",
+      "cardinality": "single"
+    },
+    {
+      "role": "background_primary",
+      "matcher": { "type": "largest_static_region" }
+    },
+    {
+      "role": "background_secondary",
+      "matcher": { "type": "second_largest_static_region" }
+    }
+  ],
+  "game_roles": [
+    {
+      "role": "consumable",
+      "matcher": {
+        "type": "visual_template",
+        "role": "consumable",
+        "similarity_threshold": 0.7
+      },
+      "projection_mode": "centroid"
+    },
+    {
+      "role": "hazard",
+      "matcher": {
+        "type": "visual_template",
+        "role": "hazard",
+        "similarity_threshold": 0.7
+      },
+      "projection_mode": "centroid"
+    },
+    {
+      "role": "hud",
+      "matcher": {
+        "type": "visual_template",
+        "role": "hud",
+        "similarity_threshold": 0.7
+      },
+      "projection_mode": "centroid"
+    },
+    {
+      "role": "win_marker",
+      "matcher": {
+        "type": "visual_template",
+        "role": "win_marker",
+        "similarity_threshold": 0.7
+      },
+      "projection_mode": "centroid"
+    }
+  ],
+  "levels": {
+    "0": {
+      "background_projection": "bbox_membership",
+      "truth_codes": {
+        "agent": "A",
+        "background_primary": "W",
+        "background_secondary": "B",
+        "consumable": "G",
+        "hazard": "D",
+        "hud": "U",
+        "win_marker": "X"
+      }
+    },
+    "1": {
+      "background_projection": "pixel_majority",
+      "projection_overrides": {
+        "hazard": "all_cells",
+        "hud": "bbox_strip_row"
+      },
+      "truth_codes": {
+        "agent": "A",
+        "background_primary": "W",
+        "background_secondary": "B",
+        "consumable": "P",
+        "hazard": "H",
+        "hud": "U",
+        "win_marker": "X"
+      }
+    }
+  }
+}

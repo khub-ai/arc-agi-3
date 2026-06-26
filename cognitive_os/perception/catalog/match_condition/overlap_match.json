@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "overlap_match",
+  "primitive_kind": "match_condition",
+  "description":    "One entity's position must overlap (typically centre-on-centre) with another entity (a target_slot). Win when the centres coincide within tolerance.",
+  "vlm_recognition_hints": [
+    "Two entities of clearly complementary shape (filled ball + hollow shell, square peg + square hole), often sharing palette.",
+    "The 'one to be moved' is typically the smaller, solid entity; the 'slot' is the larger, hollow one.",
+    "When the player moves the moveable entity onto the slot, the level visibly resolves."
+  ],
+  "anchored_in_samples": ["r11l_1of6"]
+}

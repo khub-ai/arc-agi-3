@@ -1,0 +1,179 @@
+{
+  "game_id": "bp35",
+  "templates": [
+    {
+      "role": "consumable",
+      "signature": [
+        [
+          4243504,
+          0.84
+        ],
+        [
+          6316128,
+          0.16
+        ]
+      ],
+      "level": "0",
+      "first_seen_trial": "bp35_lc0_seq01",
+      "corroborations": 78,
+      "pixel_count_min": 10,
+      "pixel_count_max": 25
+    },
+    {
+      "role": "consumable",
+      "signature": [
+        [
+          15790320,
+          1.0
+        ]
+      ],
+      "level": "0",
+      "first_seen_trial": "bp35_lc0_seq01",
+      "corroborations": 1,
+      "pixel_count_min": 50,
+      "pixel_count_max": 50
+    },
+    {
+      "role": "consumable",
+      "signature": [
+        [
+          10506448,
+          1.0
+        ]
+      ],
+      "level": "0",
+      "first_seen_trial": "bp35_lc0_seq01",
+      "corroborations": 1,
+      "pixel_count_min": 29,
+      "pixel_count_max": 29
+    },
+    {
+      "role": "hud",
+      "signature": [
+        [
+          10506448,
+          1.0
+        ]
+      ],
+      "level": "0",
+      "first_seen_trial": "bp35_lc0_seq01",
+      "corroborations": 5,
+      "pixel_count_min": 4,
+      "pixel_count_max": 39
+    },
+    {
+      "role": "hazard",
+      "signature": [
+        [
+          10506448,
+          1.0
+        ]
+      ],
+      "level": "0",
+      "first_seen_trial": "bp35_lc0_seq01",
+      "corroborations": 2,
+      "pixel_count_min": 202,
+      "pixel_count_max": 217
+    },
+    {
+      "role": "win_marker",
+      "signature": [
+        [
+          15757504,
+          1.0
+        ]
+      ],
+      "level": "0",
+      "first_seen_trial": "bp35_lc0_seq01",
+      "corroborations": 3,
+      "pixel_count_min": 5,
+      "pixel_count_max": 5
+    },
+    {
+      "role": "hazard",
+      "signature": [
+        [
+          12632256,
+          0.8
+        ],
+        [
+          15781888,
+          0.13333333333333333
+        ],
+        [
+          0,
+          0.06666666666666667
+        ]
+      ],
+      "level": "1",
+      "first_seen_trial": "bp35_lc1_seq01",
+      "corroborations": 172,
+      "pixel_count_min": 15,
+      "pixel_count_max": 29
+    },
+    {
+      "role": "hazard",
+      "signature": [
+        [
+          14692512,
+          0.84
+        ],
+        [
+          10506448,
+          0.16
+        ]
+      ],
+      "level": "1",
+      "first_seen_trial": "bp35_lc1_seq01",
+      "corroborations": 24,
+      "pixel_count_min": 25,
+      "pixel_count_max": 25
+    },
+    {
+      "role": "hud",
+      "signature": [
+        [
+          0,
+          1.0
+        ]
+      ],
+      "level": "1",
+      "first_seen_trial": "bp35_lc1_seq01",
+      "corroborations": 29,
+      "pixel_count_min": 35,
+      "pixel_count_max": 63
+    },
+    {
+      "role": "hud",
+      "signature": [
+        [
+          12632256,
+          1.0
+        ]
+      ],
+      "level": "1",
+      "first_seen_trial": "bp35_lc1_seq01",
+      "corroborations": 13,
+      "pixel_count_min": 4,
+      "pixel_count_max": 16
+    },
+    {
+      "role": "consumable",
+      "signature": [
+        [
+          14692512,
+          0.84
+        ],
+        [
+          10506448,
+          0.16
+        ]
+      ],
+      "level": "1",
+      "first_seen_trial": "bp35_lc1_seq01",
+      "corroborations": 294,
+      "pixel_count_min": 25,
+      "pixel_count_max": 25
+    }
+  ]
+}

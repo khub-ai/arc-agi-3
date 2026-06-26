@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "reach_cell",
+  "primitive_kind": "match_condition",
+  "description":    "The agent must enter a specific cell (the 'win cell'). The cell may be reachable directly or only via launchers / portals / state-change preconditions.",
+  "vlm_recognition_hints": [
+    "A specific visually-distinguished cell (often inside a wall-enclosed chamber) marks the goal.",
+    "Pre-conditions visible: alignment puzzles must be solved first; sequence triggers must be visited.",
+    "Win is when the agent's avatar enters this cell."
+  ],
+  "anchored_in_samples": ["ls20_4of7"]
+}

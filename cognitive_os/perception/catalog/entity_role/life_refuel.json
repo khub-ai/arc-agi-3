@@ -1,0 +1,24 @@
+{
+  "primitive_id": "life_refuel",
+  "primitive_kind": "entity_role",
+  "description": "An entity the agent collects (by entering or stepping onto its cell) to refill remaining life / budget. Usually rendered as a yellow ring or coloured pickup.",
+  "motion_class": "static",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Small, bright-coloured (often yellow) ring or square, visually distinct from launchers and triggers.",
+    "Sits in the navigable area; multiple instances per level are common.",
+    "When entered, the budget_meter / life_indicator visibly increases."
+  ],
+  "interaction_signature": {
+    "trigger": "agent enters the life_refuel cell",
+    "effect": "remaining life / budget meter increases by a fixed amount",
+    "observable_change": "budget_meter bar lengthens or life_indicator count increases"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_CELL (when budget is low)",
+    "intent": "extend life budget when running low to enable longer trips"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ]
+}

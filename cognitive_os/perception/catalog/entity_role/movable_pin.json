@@ -1,0 +1,24 @@
+{
+  "primitive_id": "movable_pin",
+  "primitive_kind": "entity_role",
+  "description": "An agent-controllable endpoint that teleports to wherever the player clicks (in games with click-based control) or moves under a similar direct-positioning action.",
+  "motion_class": "agent_controlled",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "A discrete ball / dot / pin that changes position between frames in response to a single click or position-set action.",
+    "Often visually marked as 'the lighter / brighter' end of a paired structure (vs the anchor_endpoint at the other end).",
+    "When part of a constrained-line configuration with other balls, the movable_pin is the one that moves freely while others follow geometric constraints."
+  ],
+  "interaction_signature": {
+    "trigger": "click_void_to_teleport action",
+    "effect": "movable_pin teleports to the clicked cell",
+    "observable_change": "pin's position shifts to the click target between frames"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_CELL",
+    "directive_template": "CLICK_VOID(target_cell) — directly teleports the pin"
+  },
+  "anchored_in_samples": [
+    "r11l_1of6"
+  ]
+}

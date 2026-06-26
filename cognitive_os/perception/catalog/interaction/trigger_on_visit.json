@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "trigger_on_visit",
+  "primitive_kind": "interaction",
+  "description":    "The agent visits a trigger entity's cell (typically a shape_changer / color_changer / similar) and a state change fires automatically. No additional action needed beyond movement onto the cell.",
+  "vlm_recognition_hints": [
+    "When the agent enters a cell occupied by a state-changer entity, a state-change effect fires on another (linked) entity.",
+    "Distinguish from launchers (which teleport the agent) — trigger_on_visit doesn't move the agent, it mutates other state.",
+    "Often repeatable: visiting the same trigger multiple times cycles through variants."
+  ],
+  "anchored_in_samples": ["ls20_4of7"]
+}

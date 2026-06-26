@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "cycle_at_bracket",
+  "primitive_kind": "interaction",
+  "description":    "An action cycles the icon at the bracketed position (in a working_sequence) to the next variant in its sequence. Typical for matching-puzzle games where the player chooses among variants.",
+  "vlm_recognition_hints": [
+    "A specific action produces a swap of the entity at the selection_bracket's current position, while everything else stays.",
+    "Cycling is typically modular — after the last variant, returns to the first.",
+    "The bracket itself doesn't move during cycle — a separate action (advance_bracket) handles position changes."
+  ],
+  "anchored_in_samples": ["tr87_1of7"]
+}

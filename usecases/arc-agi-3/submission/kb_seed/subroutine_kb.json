@@ -1,0 +1,515 @@
+{
+ "subroutines": [
+  {
+   "subroutine_id": "sub_displace_one_neighbour_to_clear_a_path_1779984612",
+   "name": "displace one neighbour to clear a path",
+   "description": "When the only way to act on a target entity is blocked by another entity that I am NOT allowed to engage / consume / alter, I move the blocking entity out of the way using a tool the agent controls.  The tool has a reach (it can be extended in some direction) and, when the agent moves perpendicular to the reach axis, the tool sweeps any entity in its swept band perpendicular to itself.  By extending the tool to cover ONLY the blocker's column and then moving perpendicular through the blocker's row, I displace ONLY the blocker without engaging it.\n  SWIPE PRECONDITION (load-bearing): the sweep moves only entities whose lane the arm BODY already spans. Extend on a CLEAR lane OFFSET from the targets (one row/col to the side) to reach across their lane, THEN move across that lane. Extending ALONG the targets' own lane arrests on the first one and sweeps nothing.",
+   "problem_solved": "Goal: reach a target entity that lies along a path blocked by other entities.  Constraint: a forbidden effect (e.g. engagement, consumption) would happen if I encountered any non-target entity directly.  Subgoal: move ONE non-target out of the way.",
+   "concrete_chain": [
+    "ACTION4",
+    "ACTION1",
+    "ACTION1",
+    "ACTION1",
+    "ACTION1"
+   ],
+   "expected_outcome": "The chosen blocker entity is displaced perpendicular to the tool's reach axis by one sweep step.  All other co-located entities remain at their original positions.",
+   "provenance": [
+    {
+     "game_id": "sk48",
+     "level": 1,
+     "turn_range": [
+      126,
+      141
+     ],
+     "original_goal": "deliver each block to the HUD column matching its colour; subgoal at this point: get green block out of arm's path so red can be approached",
+     "created_at": 1779984612.6333654,
+     "outcome": "seeded",
+     "notes": "First successful application of the side-swipe pattern; later forked for bulk variant.",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      12,
+      12
+     ],
+     "original_goal": "subgoal:sg_discover_win_condition_t1_15294",
+     "created_at": 1780015883.6258736,
+     "outcome": "no_op",
+     "notes": "Big discovery: RIGHT produced the SAME effect as ACTION4/ACTION7 — arm dlen=+6. ACTION4/ACTION7/RIGHT are all arm-extend aliases. Agent does NOT physically move horizontally — there is no generic agent navigation. So the available_actions l",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      14,
+      14
+     ],
+     "original_goal": "subgoal:sg_discover_win_condition_t1_15294",
+     "created_at": 1780015937.8906653,
+     "outcome": "no_op",
+     "notes": "Sequence interrupted on unexpected_silent: t14 ACTION4 produced NO change — arm at max extension (cols 17-41, tip at col 41), block_green at col 42. Arm tip is exactly 1 tick before block_green. Continuing the planned sequence: ACTION1 = mo",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      25,
+      25
+     ],
+     "original_goal": "subgoal:sg_align_block_blue_to_blue_hud_column_t25_16437",
+     "created_at": 1780016437.2299893,
+     "outcome": "no_op",
+     "notes": "Stuck at row 4 because block_green (coupled to arm tip) can't push into row 3 (blocked by block_blue at row 2-3). New plan based on HUD column-matching WC: each block must align with its color's HUD column. HUD cols: red=24-28, orange=30-34",
+     "source": "earned"
+    }
+   ],
+   "attempts": {
+    "n_applied": 1,
+    "n_succeeded": 1,
+    "n_failed": 0,
+    "n_partial": 0
+   },
+   "credence": 0.6,
+   "parent_id": null,
+   "variant_notes": "",
+   "step_count": 0,
+   "raw_chain": [],
+   "relational_steps": [],
+   "signature": [],
+   "goal_key": []
+  },
+  {
+   "subroutine_id": "sub_displace_multiple_neighbours_in_one_swee_1779984612",
+   "name": "displace MULTIPLE neighbours in one sweep",
+   "description": "Bulk variant of the displacement pattern.  Same mechanism as the parent — extend the agent's reach tool to cover MULTIPLE blocker columns at once (the tool's column-band contains 2+ blockers, but stops BEFORE any non-target you want to leave in place).  One perpendicular movement sweeps all in-band blockers simultaneously.  Count extension steps carefully: stop strictly before the leftmost non-blocker's column.  Cheaper than the single variant when several blockers need to move in the same direction.\n  SWIPE PRECONDITION (load-bearing): the sweep moves only entities whose lane the arm BODY already spans. Extend on a CLEAR lane OFFSET from the targets (one row/col to the side) to reach across their lane, THEN move across that lane. Extending ALONG the targets' own lane arrests on the first one and sweeps nothing.",
+   "problem_solved": "Same as parent, but with multiple blockers along the path that can be displaced in a single sweep.",
+   "concrete_chain": [
+    "ACTION4",
+    "ACTION4",
+    "ACTION4",
+    "ACTION4",
+    "ACTION4",
+    "ACTION1",
+    "ACTION1",
+    "ACTION1",
+    "ACTION3",
+    "ACTION1"
+   ],
+   "expected_outcome": "All k blockers in the tool's column band are displaced perpendicular by one sweep step; targets outside the column band remain in place.",
+   "provenance": [
+    {
+     "game_id": "sk48",
+     "level": 1,
+     "turn_range": [
+      17,
+      29
+     ],
+     "original_goal": "isolate red block by sweeping green+blue+orange up in a single ACTION1, leaving red alone",
+     "created_at": 1779984612.6363573,
+     "outcome": "seeded",
+     "notes": "",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      17,
+      17
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984727.3001835,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 1/7: extend arm col 23 -> 29  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      18,
+      18
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984731.5406556,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 2/7: arm col 29 -> 35 (now covers green)  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      19,
+      19
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984735.7330816,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 3/7: arm col 35 -> 41 (now covers green+blue)  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      20,
+      20
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984739.9331062,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 4/7: arm col 41 -> 47 (covers green+blue+orange, stops short of red at c48)  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      21,
+      21
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984744.1283438,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 5/7: raise agent  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      22,
+      22
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984748.3215787,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 6/7: continue raising toward block row  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      23,
+      23
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984752.5095408,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 7/7: arm should cross block row this turn  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      24,
+      24
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779984790.7036035,
+     "outcome": "success",
+     "notes": "BULK side-swipe SUCCEEDED at t23->t24: green/blue/orange swept from row 25-29 to row 19-22; RED STAYS at row 25-29 col 48 — exactly the subroutine's expected outcome. Now starting next phase: engage red specifically. Current state: arm at r",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      17,
+      17
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779989955.392441,
+     "outcome": "no_op",
+     "notes": "At lc=1 start: 4 collectables at row 25-29 cols 30/36/42/48. Engaging green or blue or orange first would lock me into a permanently-attached sequence I cannot release from (per prior trials). Plan: isolate red alone by sweeping the other t",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      17,
+      17
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990151.4078727,
+     "outcome": "no_op",
+     "notes": "At lc=1 start: 4 collectables at row 25-29 cols 30/36/42/48. Engaging green/blue/orange first traps me in the all-impaled state (per prior trials). Plan: isolate red alone by sweeping the other three out of the row, then engage red. The see",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      18,
+      18
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990259.6414428,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 1/7: extend arm col 23 -> 29  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      19,
+      19
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990263.814813,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 2/7: arm col 29 -> 35 (now covers green)  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      20,
+      20
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990267.987343,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 3/7: arm col 35 -> 41 (now covers green+blue)  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      21,
+      21
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990272.1618612,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 4/7: arm col 41 -> 47 (covers green+blue+orange, stops short of red at c48)  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      22,
+      22
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990276.3342354,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 5/7: raise agent  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      23,
+      23
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990280.525473,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 6/7: continue raising toward block row  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      24,
+      24
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990284.7002764,
+     "outcome": "no_op",
+     "notes": "bulk-displace step 7/7: arm should cross block row this turn  [mechanical was ACTION6]",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      25,
+      25
+     ],
+     "original_goal": "explore:action:ACTION6",
+     "created_at": 1779990382.9033482,
+     "outcome": "failure",
+     "notes": "The bulk-displace subroutine application FAILED — same over-extension mode as in prior trials. t24 shows arm at col 53 (covering red), and the t24->t25 ACTION1 swept all 4 blocks together (green/blue/orange/red all moved from row 25-29 to r",
+     "source": "earned"
+    },
+    {
+     "game_id": "sk48",
+     "level": 0,
+     "turn_range": [
+      15,
+      15
+     ],
+     "original_goal": "subgoal:sg_deliver_block_green_to_hud_t15_16036",
+     "created_at": 1780016036.0778906,
+     "outcome": "no_op",
+     "notes": "MAJOR BREAKTHROUGH at t15! ACTION1 with arm extended SWEPT all three blocks UP by one cell: block_green (5,8)->(4,8), block_blue (4,8)->(2,8), block_red (2,8)->(1,8). The arm at full extension (cols 17-41) covers the column band BUT the per",
+     "source": "earned"
+    }
+   ],
+   "attempts": {
+    "n_applied": 3,
+    "n_succeeded": 2,
+    "n_failed": 1,
+    "n_partial": 0
+   },
+   "credence": 0.5299999999999999,
+   "parent_id": "sub_displace_one_neighbour_to_clear_a_path_1779984612",
+   "variant_notes": "Bulk version: covers k blockers instead of 1; same mechanism, count extension steps to stop one column before the leftmost non-target.  Validated on sk48 lc=1 t17-29.",
+   "step_count": 0,
+   "raw_chain": [],
+   "relational_steps": [],
+   "signature": [],
+   "goal_key": []
+  },
+  {
+   "subroutine_id": "sub_free_a_wall_jammed_cluster_by_relocating_1780267140",
+   "name": "free a wall-jammed cluster by relocating each piece to its own clear lane",
+   "description": "Recovery for a wall-jammed cluster, independent of piece colour and piece count.  Phases:\n  (0) DECIDE WHETHER TO RECOVER AT ALL (check FIRST — skipping this is the costliest mistake).  This relocation is warranted ONLY when the cluster is FLUSH against a boundary on the side a piece must be swept toward, i.e. `clearance` to that boundary is 0, so no separating sweep has room.  Read the clearance relations BEFORE moving anything: if the cluster ALREADY has clearance on BOTH sides of the separation axis (it is sitting in open mid-field), DO NOT relocate — go straight to phase (4) and separate the pieces WHERE THEY ARE.  Relocating an already-clear cluster is a frequent, expensive error: it tends to push the pieces toward a wall and DESTROY the clearance you already had, manufacturing the very jam this technique exists to escape.\n  (1) ATTACH — perform the agent's grab/skewer action so the jammed pieces couple to the agent and co-move with it (relation: co_displacement(agent, pieces)).  Attach as many of the jammed pieces as the agent can carry together.\n  (2) CARRY TO USABLE OPEN SPACE — \"open space\" is defined RELATIVE to the separation you are about to perform, NOT as a vague high-clearance-on-all-sides blob.  The destination must leave clearance on the side each piece will be swept TOWARD in phase (4), AND room on the offset side for the arm body.  LOAD-BEARING POST-CONDITION: never end the carry with the cluster FLUSH against a boundary — `clearance(cluster, sweep-target side)` must be > 0 afterward; ending flush re-creates the jam you are escaping (this is exactly the regression to avoid: 'relocated to open space' is WRONG if it left the pieces pinned against a wall).  Move the agent (pieces co-moving) away from the boundary and AROUND any non-target pieces; do not collide the carried cluster with pieces you are not carrying.\n  (3) RELEASE — move the agent to the extreme of its detach axis (e.g. all the way to one side) until the pieces uncouple (co_displacement(agent, pieces) ceases).\n  (4) SEPARATE ONTO CLEAR LANES — lateral push/swipe each piece into a lane (row or column) that contains no other piece, so AFTER the move that piece is alone in its lane (same_row/same_col count == 1).  LOAD-BEARING SWIPE SETUP (this is where a naive attempt fails): the swipe sweeps only pieces whose lane the arm's BODY already spans, so you must (a) put the agent on a CLEAR lane OFFSET from the pieces (one row/column to the side), (b) extend the arm THERE to reach across the target piece's lane — extending along the pieces' OWN lane arrests on contact with the first piece and never gets the arm body past/over it, so the sweep then moves nothing — then (c) move ACROSS the pieces' lane so the spanning arm body carries the piece off it.  Repeat until every piece occupies its own clear lane.\n  (4a) OFFSET-LANE SYMMETRY (do not skip this step): the offset can be on EITHER side of the pieces' lane (above OR below, left OR right) — the sweep then carries the piece to the OPPOSITE side.  BEFORE choosing a side, ENUMERATE BOTH and pick by the relations: prefer the side that puts the piece into HIGHER clearance after the sweep, and AVOID the side that would sweep a piece toward a nearby boundary (check `clearance` relations).  A wrong-side choice is what creates a wall-jam dead-end; the right-side choice is what prevents one.  The operation is RELATIVE (offset->across), not absolute (`below->up`); treating it as absolute reuses whichever side you used last and re-creates the jam.\n  (5) COLLECT IN ORDER — each piece is now individually addressable, so run the normal ordered-collection procedure: visit and act on each piece in the required target order (the win's ordered_completion sequence).\nRECOVERY-IF-ALREADY-JAMMED: if a cluster is already flush against a boundary with NO clear lane BEYOND it to sweep it back (e.g. shoved into the very top/edge row) AND the next ordered target sits BEHIND out-of-order pieces, the offset-sweep cannot extract it and pushing the chain toward the goal-wall does NOT help (the agent's tip cannot bypass the out-of-order pieces to reach the target).  The reliable escape is to UNDO (rewind) back to BEFORE the move that jammed it, then redo with the prevention/offset approach.  CLEARING THE ARM for a vertical reposition: retract ONLY until the tip is just past/clear of the target pieces — do NOT full-retract a carried pierced piece all the way to the base, which UN-completes it (a pierced piece survives partial drag but reverts if dragged fully back to the origin).\nWATCH OUT: prevention beats recovery — avoid sweeping pieces flush against a boundary in the first place.  Phase (2)'s open region must be large enough to separate ALL carried pieces in phase (4).  OPERATION CAUTION: if acting on a piece to grab/skewer it ALSO COMPLETES it (e.g. skewering lights its HUD swatch) AND completion order is constrained, do NOT use the skewer-attach phases (1-3) to merely reposition — that completes pieces out of order.  Separate with the NON-completing sweep (phase 4) instead, then complete in order in phase (5).",
+   "problem_solved": "A set of pieces has been pushed flush against a boundary wall and packed together so that NO single normal action separates them or moves them off the wall usefully — a dead-end Layer C recognises as `undo_only` (only Undo recovers it).  The pieces must still be collected individually in a required target order, but in the jammed configuration that ordered collection is impossible: acting on one piece drags or blocks the others.  Goal: restore a configuration in which each piece can be addressed alone.",
+   "concrete_chain": [],
+   "expected_outcome": "Every previously-jammed piece occupies its own clear lane (no two pieces share a row or column), the agent is uncoupled and free, and the pieces can be collected one at a time in the required target order.  The `undo_only` dead-end no longer holds.",
+   "provenance": [
+    {
+     "game_id": "sk48",
+     "level": 1,
+     "turn_range": [
+      31,
+      31
+     ],
+     "original_goal": "escape a wall-jammed dead-end and reach a collectable configuration (originating example: sk48 lc=1, green+blue blocks shoved flush against the top wall at turn 31)",
+     "created_at": 1780267140.498328,
+     "outcome": "seeded",
+     "notes": "DIALOGIC-LEARNING SEED (2026-05-31). Human-authored generalised recovery technique. Originating concrete instance: sk48 lc=1, green and blue blocks jammed against the TOP wall — pierce both so they move with the arm, carry them around other blocks into open space, slide the arm fully left to unskewer, side-swipe each onto its own empty row, then pierce each in HUD order. Generalised here to any piece colour and any piece count. UNVERIFIED by the system's own play — credence is a human prior; attempts are 0/0.",
+     "source": "dialogic"
+    }
+   ],
+   "attempts": {
+    "n_applied": 0,
+    "n_succeeded": 0,
+    "n_failed": 0,
+    "n_partial": 0
+   },
+   "credence": 0.7,
+   "parent_id": null,
+   "variant_notes": "",
+   "step_count": 0,
+   "raw_chain": [],
+   "relational_steps": [
+    "GATE: recover ONLY if clearance(cluster, sweep-target side)==0 (flush to a boundary). If clearance>0 on both sides of the separation axis already, SKIP relocation and go straight to SEPARATE where the pieces are; relocating an already-clear cluster destroys usable clearance and re-jams it",
+    "ATTACH: agent grab/skewer the jammed pieces -> co_displacement(agent, pieces)",
+    "CARRY: move agent (pieces co-moving) off the boundary into open space defined RELATIVE to the separation — clearance on the side each piece is swept toward, plus room on the offset side for the arm body. POST-CONDITION: clearance(cluster, sweep-target side) > 0 afterward; NEVER end flush against a boundary. Avoid colliding with non-carried pieces",
+    "RELEASE: move agent to the detach-axis extreme until co_displacement(agent, pieces) ends",
+    "SEPARATE: relative operation (offset-lane -> across-targets-lane), NOT absolute (`below->up`). (a) agent on a CLEAR offset lane on EITHER side of the targets' lane — ENUMERATE BOTH sides and pick by `clearance` relations (the side that sweeps INTO open space, never toward a nearby boundary); (b) extend the arm at that offset lane to reach across the targets' lane (extending ALONG the targets' own lane arrests on the first piece and sweeps nothing); (c) move ACROSS the targets' lane so the spanning arm body carries the piece off it; result same_row/same_col count==1; repeat per piece",
+    "COLLECT: run the ordered-completion procedure over the now-separated pieces in target order"
+   ],
+   "signature": [],
+   "goal_key": []
+  },
+  {
+   "subroutine_id": "sub_clear_co_confined_before_act_1780613811",
+   "name": "clear_co_confined_before_act",
+   "description": "Break a blocking co_confined between the agent and a standing structure before acting, by applying 'down'; learned because 'ACTION3' otherwise causes action 'ACTION3' regressed conditions ['orange'].",
+   "problem_solved": "goal blocked by co_confined(agent, structure); naive 'ACTION3' regresses",
+   "concrete_chain": [
+    "down"
+   ],
+   "expected_outcome": "co_confined(agent, structure) no longer holds; 'ACTION3' can proceed without action 'ACTION3' regressed conditions ['orange']",
+   "provenance": [
+    {
+     "game_id": "syn",
+     "level": 2,
+     "turn_range": [
+      99,
+      99
+     ],
+     "original_goal": "action 'ACTION3' regressed conditions ['orange']",
+     "created_at": 1780613811.905976,
+     "outcome": "seeded",
+     "notes": "earned via causal_attribution (confirmed)",
+     "source": "earned"
+    },
+    {
+     "game_id": "syn",
+     "level": 2,
+     "turn_range": [
+      99,
+      99
+     ],
+     "original_goal": "action 'ACTION3' regressed conditions ['orange']",
+     "created_at": 1780615954.094151,
+     "outcome": "success",
+     "notes": "earned via causal_attribution (confirmed)",
+     "source": "earned"
+    },
+    {
+     "game_id": "syn",
+     "level": 2,
+     "turn_range": [
+      99,
+      99
+     ],
+     "original_goal": "action 'ACTION3' regressed conditions ['orange']",
+     "created_at": 1780615972.340276,
+     "outcome": "success",
+     "notes": "earned via causal_attribution (confirmed)",
+     "source": "earned"
+    },
+    {
+     "game_id": "syn",
+     "level": 2,
+     "turn_range": [
+      99,
+      99
+     ],
+     "original_goal": "action 'ACTION3' regressed conditions ['orange']",
+     "created_at": 1782232342.6204085,
+     "outcome": "success",
+     "notes": "earned via causal_attribution (confirmed)",
+     "source": "earned"
+    }
+   ],
+   "attempts": {
+    "n_applied": 4,
+    "n_succeeded": 4,
+    "n_failed": 0,
+    "n_partial": 0
+   },
+   "credence": 0.8399999999999999,
+   "parent_id": null,
+   "variant_notes": "",
+   "step_count": 1,
+   "raw_chain": [],
+   "relational_steps": [
+    "if co_confined(agent, blocking_structure) holds and it blocks the goal, apply down until co_confined no longer holds",
+    "then resume ACTION3 toward the goal"
+   ],
+   "signature": [
+    [
+     "co_confined",
+     [
+      "agent",
+      "blocking_structure"
+     ],
+     null
+    ]
+   ],
+   "goal_key": []
+  }
+ ]
+}

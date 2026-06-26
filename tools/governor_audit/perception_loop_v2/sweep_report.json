@@ -1,0 +1,4744 @@
+{
+  "elapsed_seconds": 270.3,
+  "n_games": 9,
+  "turns_per_game": 30,
+  "results": [
+    {
+      "game_id": "bp35-0a0ad940",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 22,
+      "status": "ok",
+      "code_distribution": {
+        "W": 570,
+        "G": 130,
+        "B": 510,
+        "A": 22,
+        "U": 176
+      },
+      "motion_agreements": 10,
+      "motion_disagreements": 1,
+      "structural_events_by_kind": {},
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 1,
+      "pending_at_end": 0,
+      "cells_demoted": 1,
+      "smoothed_cells_total": 64,
+      "kept_by_visual_total": 33,
+      "kept_by_cause_total": 7,
+      "trust_min": 0.55,
+      "trust_max": 0.97,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [
+        "turn 21: state=GAME_OVER, stopping early"
+      ],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 8,
+            "confirmed_delta": [
+              0,
+              -1
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  -1
+                ],
+                "count": 8
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 8,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 6
+              },
+              {
+                "delta": [
+                  -4,
+                  0
+                ],
+                "count": 2
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 8,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 8
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 7,
+            "confirmed_delta": [
+              0,
+              1
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  1
+                ],
+                "count": 6
+              },
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 1
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            4,
+            2
+          ],
+          "code_grid": [
+            "WGGGBBBW",
+            "WWWWGGGW",
+            "WWBBBBBW",
+            "WWBBBBBW",
+            "WWAWWBWW",
+            "WWBBBBBW",
+            "WWBBBBBW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                294,
+                158,
+                329,
+                185
+              ]
+            },
+            {
+              "id": "g1",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                102,
+                49,
+                145
+              ]
+            },
+            {
+              "id": "g2",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                150,
+                49,
+                193
+              ]
+            },
+            {
+              "id": "g3",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                198,
+                49,
+                241
+              ]
+            },
+            {
+              "id": "g4",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                246,
+                145,
+                289
+              ]
+            },
+            {
+              "id": "g5",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                294,
+                145,
+                337
+              ]
+            },
+            {
+              "id": "g6",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                342,
+                145,
+                385
+              ]
+            },
+            {
+              "id": "g7",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                390,
+                145,
+                433
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            4,
+            2
+          ],
+          "code_grid": [
+            "WGGGBBBW",
+            "WWWWGGGW",
+            "WWBBBBBW",
+            "WWBBBBBW",
+            "WWAWWBWW",
+            "WWBBBBBW",
+            "WWBBBBBW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                294,
+                158,
+                329,
+                185
+              ]
+            },
+            {
+              "id": "g1",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                102,
+                49,
+                145
+              ]
+            },
+            {
+              "id": "g2",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                150,
+                49,
+                193
+              ]
+            },
+            {
+              "id": "g3",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                198,
+                49,
+                241
+              ]
+            },
+            {
+              "id": "g4",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                246,
+                145,
+                289
+              ]
+            },
+            {
+              "id": "g5",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                294,
+                145,
+                337
+              ]
+            },
+            {
+              "id": "g6",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                342,
+                145,
+                385
+              ]
+            },
+            {
+              "id": "g7",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                390,
+                145,
+                433
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            4,
+            1
+          ],
+          "code_grid": [
+            "WGGGBBBW",
+            "WWWWGGGW",
+            "WWBBBBBW",
+            "WWBBBBBW",
+            "WAWWWBWW",
+            "WWBBBBBW",
+            "WWBBBBWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                294,
+                110,
+                329,
+                137
+              ]
+            },
+            {
+              "id": "g1",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                102,
+                49,
+                145
+              ]
+            },
+            {
+              "id": "g2",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                150,
+                49,
+                193
+              ]
+            },
+            {
+              "id": "g3",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                198,
+                49,
+                241
+              ]
+            },
+            {
+              "id": "g4",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                246,
+                145,
+                289
+              ]
+            },
+            {
+              "id": "g5",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                294,
+                145,
+                337
+              ]
+            },
+            {
+              "id": "g6",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                342,
+                145,
+                385
+              ]
+            },
+            {
+              "id": "g7",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                390,
+                145,
+                433
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            0,
+            1
+          ],
+          "code_grid": [
+            "WAGGBBBW",
+            "WWWWGGGW",
+            "WWBBBBBW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "BBBBBBBB",
+            "BBBBBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                102,
+                49,
+                145
+              ]
+            },
+            {
+              "id": "g1",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                150,
+                49,
+                193
+              ]
+            },
+            {
+              "id": "g2",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                6,
+                198,
+                49,
+                241
+              ]
+            },
+            {
+              "id": "g3",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                246,
+                145,
+                289
+              ]
+            },
+            {
+              "id": "g4",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                294,
+                145,
+                337
+              ]
+            },
+            {
+              "id": "g5",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                342,
+                145,
+                385
+              ]
+            },
+            {
+              "id": "g6",
+              "code": "G",
+              "role": "green sediment",
+              "bbox_pixels": [
+                102,
+                390,
+                145,
+                433
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 20.9
+    },
+    {
+      "game_id": "dc22-4c9bff3e",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "W": 810,
+        "B": 660,
+        "H": 60,
+        "P": 120,
+        "A": 30,
+        "U": 240
+      },
+      "motion_agreements": 16,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {},
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 1,
+      "pending_at_end": 0,
+      "cells_demoted": 0,
+      "smoothed_cells_total": 0,
+      "kept_by_visual_total": 0,
+      "kept_by_cause_total": 0,
+      "trust_min": 0.996,
+      "trust_max": 0.996,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            3,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWBBBB",
+            "WWHHBPBB",
+            "WAPWBBBB",
+            "WWWWBPBB",
+            "WPWWBBBB",
+            "WWWWBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                62,
+                273,
+                177
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                126,
+                318,
+                177,
+                449
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                254,
+                318,
+                321,
+                449
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                302,
+                62,
+                353,
+                113
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                142,
+                142,
+                193,
+                225
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            3,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWBBBB",
+            "WWHHBPBB",
+            "WAPWBBBB",
+            "WWWWBPBB",
+            "WPWWBBBB",
+            "WWWWBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                62,
+                273,
+                177
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                126,
+                318,
+                177,
+                449
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                254,
+                318,
+                321,
+                449
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                302,
+                62,
+                353,
+                113
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                142,
+                142,
+                193,
+                225
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            3,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWBBBB",
+            "WWHHBPBB",
+            "WAPWBBBB",
+            "WWWWBPBB",
+            "WPWWBBBB",
+            "WWWWBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                62,
+                273,
+                177
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                126,
+                318,
+                177,
+                449
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                254,
+                318,
+                321,
+                449
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                302,
+                62,
+                353,
+                113
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                142,
+                142,
+                193,
+                225
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            3,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWBBBB",
+            "WWHHBPBB",
+            "WAPWBBBB",
+            "WWWWBPBB",
+            "WPWWBBBB",
+            "WWWWBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                62,
+                273,
+                177
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                126,
+                318,
+                177,
+                449
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                254,
+                318,
+                321,
+                449
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                302,
+                62,
+                353,
+                113
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                142,
+                142,
+                193,
+                225
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": [
+            3,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWBBBB",
+            "WWHHBPBB",
+            "WAPWBBBB",
+            "WWWWBPBB",
+            "WPWWBBBB",
+            "WWWWBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                62,
+                273,
+                177
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                126,
+                318,
+                177,
+                449
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                254,
+                318,
+                321,
+                449
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                302,
+                62,
+                353,
+                113
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                142,
+                142,
+                193,
+                225
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 31.1
+    },
+    {
+      "game_id": "g50t-5849a774",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "A": 30,
+        "W": 1290,
+        "P": 30,
+        "B": 330,
+        "U": 240
+      },
+      "motion_agreements": 16,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {},
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 1,
+      "pending_at_end": 0,
+      "cells_demoted": 0,
+      "smoothed_cells_total": 0,
+      "kept_by_visual_total": 18,
+      "kept_by_cause_total": 0,
+      "trust_min": 0.996,
+      "trust_max": 0.996,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            0,
+            0
+          ],
+          "code_grid": [
+            "AWWWWWWW",
+            "WWBBBWWW",
+            "WWPBWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBBBBWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                6,
+                33,
+                33
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                38,
+                33,
+                65
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                110,
+                110,
+                153,
+                153
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            0,
+            0
+          ],
+          "code_grid": [
+            "AWWWWWWW",
+            "WWBBBWWW",
+            "WWPBWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBBBBWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                6,
+                33,
+                33
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                38,
+                33,
+                65
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                110,
+                110,
+                153,
+                153
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            0,
+            0
+          ],
+          "code_grid": [
+            "AWWWWWWW",
+            "WWBBBWWW",
+            "WWPBWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBBBBWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                6,
+                33,
+                33
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                38,
+                33,
+                65
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                110,
+                110,
+                153,
+                153
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            0,
+            0
+          ],
+          "code_grid": [
+            "AWWWWWWW",
+            "WWBBBWWW",
+            "WWPBWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBBBBWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                6,
+                33,
+                33
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                38,
+                33,
+                65
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                110,
+                110,
+                153,
+                153
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": [
+            0,
+            0
+          ],
+          "code_grid": [
+            "AWWWWWWW",
+            "WWPBBWWW",
+            "WWBBWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBWWWWW",
+            "WWBBBBWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                6,
+                33,
+                33
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                6,
+                38,
+                33,
+                65
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                62,
+                110,
+                105,
+                153
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 30.2
+    },
+    {
+      "game_id": "ka59-9f096b4a",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "W": 1380,
+        "B": 300,
+        "U": 240
+      },
+      "motion_agreements": 0,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {},
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 0,
+      "pending_at_end": 0,
+      "cells_demoted": 0,
+      "smoothed_cells_total": 0,
+      "kept_by_visual_total": 0,
+      "kept_by_cause_total": 0,
+      "trust_min": null,
+      "trust_max": null,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 0,
+        "n_confirmed": 0,
+        "per_action": []
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": null,
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WBBWBBBW",
+            "WBBWBBBW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": null,
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WBBWBBBW",
+            "WBBWBBBW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": null,
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WBBWBBBW",
+            "WBBWBBBW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": null,
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WBBWBBBW",
+            "WBBWBBBW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": null,
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WBBWBBBW",
+            "WBBWBBBW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 34.6
+    },
+    {
+      "game_id": "ls20-9607627b",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "W": 1225,
+        "A": 30,
+        "B": 370,
+        "P": 25,
+        "X": 30,
+        "U": 240
+      },
+      "motion_agreements": 16,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {},
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 1,
+      "pending_at_end": 1,
+      "cells_demoted": 0,
+      "smoothed_cells_total": 0,
+      "kept_by_visual_total": 30,
+      "kept_by_cause_total": 0,
+      "trust_min": 0.996,
+      "trust_max": 0.996,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            1,
+            4
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWAWWW",
+            "WWWWWWWW",
+            "WWBBBBBW",
+            "WWBWBBBW",
+            "WWBWPBBW",
+            "XWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                62,
+                254,
+                129,
+                321
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                350,
+                270,
+                401,
+                305
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            1,
+            4
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWAWWW",
+            "WWWWWWWW",
+            "WWBBBBBW",
+            "WWBWBBBW",
+            "WWBWPBBW",
+            "XWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                62,
+                254,
+                129,
+                321
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                350,
+                270,
+                401,
+                305
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            1,
+            4
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWAWWW",
+            "WWWWWWWW",
+            "WWBBBBBW",
+            "WWBWBBBW",
+            "WWBPBBBW",
+            "XWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                62,
+                254,
+                129,
+                321
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                350,
+                222,
+                401,
+                273
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            1,
+            4
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWAWWW",
+            "WWWWWWWW",
+            "WWBBBBBW",
+            "WWBWBBBW",
+            "WWBWPBBW",
+            "XWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                62,
+                254,
+                129,
+                321
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                350,
+                270,
+                401,
+                305
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": [
+            1,
+            4
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWAWWW",
+            "WWWWWWWW",
+            "WWBBBBBW",
+            "WWBWBBBW",
+            "WWBWBBBW",
+            "XWWWWWWW",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                62,
+                254,
+                129,
+                321
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 32.0
+    },
+    {
+      "game_id": "r11l-aa269680",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "B": 360,
+        "W": 1425,
+        "H": 103,
+        "A": 31,
+        "X": 1
+      },
+      "motion_agreements": 16,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {
+        "agent_split": 1
+      },
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 1,
+      "pending_at_end": 1,
+      "cells_demoted": 0,
+      "smoothed_cells_total": 0,
+      "kept_by_visual_total": 35,
+      "kept_by_cause_total": 2,
+      "trust_min": 0.395,
+      "trust_max": 0.994,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            6,
+            2
+          ],
+          "code_grid": [
+            "BBWBWBBB",
+            "WWWWWWWB",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWAWWWWW",
+            "WWAHWWWB",
+            "BWWHWBBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                334,
+                142,
+                393,
+                185
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                390,
+                166,
+                433,
+                209
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                430,
+                198,
+                497,
+                241
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            6,
+            3
+          ],
+          "code_grid": [
+            "BBWBWBBB",
+            "WWWWWWWB",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWAHWWB",
+            "BWWHWBBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                422,
+                230,
+                465,
+                273
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                398,
+                270,
+                441,
+                313
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                454,
+                198,
+                497,
+                241
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            6,
+            4
+          ],
+          "code_grid": [
+            "BBWBWBBB",
+            "WWWWWWWB",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWAHWB",
+            "BWWHHBBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                422,
+                262,
+                465,
+                321
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                398,
+                318,
+                441,
+                377
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                454,
+                198,
+                497,
+                265
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            6,
+            4
+          ],
+          "code_grid": [
+            "BBWBWBBB",
+            "WWWWWWWB",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWAHWB",
+            "BWWHHBBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                422,
+                262,
+                465,
+                321
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                398,
+                318,
+                441,
+                377
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                454,
+                198,
+                497,
+                265
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": [
+            6,
+            4
+          ],
+          "code_grid": [
+            "BBWBWBBB",
+            "WWWWWWWB",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWAHWB",
+            "BWWHHBBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                422,
+                262,
+                465,
+                321
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                398,
+                318,
+                441,
+                377
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                454,
+                198,
+                497,
+                265
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 32.2
+    },
+    {
+      "game_id": "sc25-f9b21a2f",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "W": 1710,
+        "A": 30,
+        "X": 30,
+        "P": 80,
+        "B": 60,
+        "H": 10
+      },
+      "motion_agreements": 16,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {},
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 1,
+      "pending_at_end": 1,
+      "cells_demoted": 0,
+      "smoothed_cells_total": 8,
+      "kept_by_visual_total": 21,
+      "kept_by_cause_total": 0,
+      "trust_min": 0.996,
+      "trust_max": 0.996,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            2,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WAWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WXWPBWWW",
+            "WWWPBWWW"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                126,
+                94,
+                177,
+                129
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                382,
+                222,
+                417,
+                257
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                462,
+                222,
+                497,
+                257
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                398,
+                94,
+                465,
+                161
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            2,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWP",
+            "WWWWWWWW",
+            "WAWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WXWPBWWW",
+            "WWWPBWWW"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                126,
+                94,
+                177,
+                129
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                0,
+                494,
+                65,
+                511
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                382,
+                222,
+                417,
+                257
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                462,
+                222,
+                497,
+                257
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                398,
+                94,
+                465,
+                161
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            2,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWP",
+            "WWWWWWWW",
+            "WAWWHHWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WXWPBWWW",
+            "WWWPBWWW"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                126,
+                94,
+                177,
+                129
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                0,
+                494,
+                97,
+                511
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                382,
+                222,
+                417,
+                257
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                462,
+                222,
+                497,
+                257
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                142,
+                270,
+                177,
+                337
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                398,
+                94,
+                465,
+                161
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            2,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWP",
+            "WWWWWWWW",
+            "WAWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WXWPBWWW",
+            "WWWPBWWW"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                126,
+                94,
+                177,
+                129
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                0,
+                494,
+                129,
+                511
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                382,
+                222,
+                417,
+                257
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                462,
+                222,
+                497,
+                257
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                398,
+                94,
+                465,
+                161
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": [
+            2,
+            1
+          ],
+          "code_grid": [
+            "WWWWWWWP",
+            "WWWWWWWW",
+            "WAWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WXWPBWWW",
+            "WWWPBWWW"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                126,
+                94,
+                177,
+                129
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                382,
+                222,
+                417,
+                257
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                462,
+                222,
+                497,
+                257
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                398,
+                94,
+                465,
+                161
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 30.2
+    },
+    {
+      "game_id": "sk48-41055498",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "W": 1215,
+        "B": 370,
+        "P": 30,
+        "H": 275,
+        "A": 30
+      },
+      "motion_agreements": 16,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {},
+      "persistence_events": 5,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 1,
+      "pending_at_end": 0,
+      "cells_demoted": 0,
+      "smoothed_cells_total": 0,
+      "kept_by_visual_total": 30,
+      "kept_by_cause_total": 20,
+      "trust_min": 0.334,
+      "trust_max": 0.996,
+      "n_low_trust_cells_at_end": 0,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            3,
+            5
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWBBBPWW",
+            "WHHBBAWW",
+            "WHHBBBWW",
+            "WHHWWWWW",
+            "WWWWWWWW",
+            "BBHHHHBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                190,
+                334,
+                225,
+                369
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                334,
+                273,
+                369
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                142,
+                334,
+                177,
+                369
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                222,
+                78,
+                337,
+                177
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                158,
+                497,
+                241
+              ]
+            },
+            {
+              "id": "h3",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                238,
+                481,
+                353
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            3,
+            5
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWBBBPWW",
+            "WHHBBAWW",
+            "WHHBBBWW",
+            "WHHWWWWW",
+            "WWWWWWWW",
+            "BBHHHHBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                190,
+                334,
+                225,
+                369
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                334,
+                273,
+                369
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                142,
+                334,
+                177,
+                369
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                222,
+                78,
+                337,
+                177
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                158,
+                497,
+                241
+              ]
+            },
+            {
+              "id": "h3",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                238,
+                481,
+                353
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            3,
+            5
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWBBBPWW",
+            "WHBBBAWW",
+            "WHBBBBWW",
+            "WHWWWWWW",
+            "WWWWWWWW",
+            "BBHHHHBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                190,
+                334,
+                225,
+                369
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                334,
+                273,
+                369
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                142,
+                334,
+                177,
+                369
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                222,
+                78,
+                337,
+                129
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                158,
+                497,
+                241
+              ]
+            },
+            {
+              "id": "h3",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                238,
+                481,
+                353
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            3,
+            5
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWBBBPWW",
+            "WHHBBAWW",
+            "WHHBBBWW",
+            "WHHWWWWW",
+            "WWWWWWWW",
+            "BBHHHHBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                190,
+                334,
+                225,
+                369
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                334,
+                273,
+                369
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                142,
+                334,
+                177,
+                369
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                222,
+                78,
+                337,
+                177
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                158,
+                497,
+                241
+              ]
+            },
+            {
+              "id": "h3",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                238,
+                481,
+                353
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": [
+            3,
+            5
+          ],
+          "code_grid": [
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "WWBBBPWW",
+            "WHHBBAWW",
+            "WHHBBBWW",
+            "WWWWWWWW",
+            "WWWWWWWW",
+            "BBHHHHBB"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                190,
+                334,
+                225,
+                369
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                238,
+                334,
+                273,
+                369
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                142,
+                334,
+                177,
+                369
+              ]
+            },
+            {
+              "id": "h1",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                238,
+                78,
+                321,
+                177
+              ]
+            },
+            {
+              "id": "h2",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                158,
+                497,
+                241
+              ]
+            },
+            {
+              "id": "h3",
+              "code": "H",
+              "role": "hazard",
+              "bbox_pixels": [
+                446,
+                238,
+                481,
+                353
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 29.5
+    },
+    {
+      "game_id": "tr87-cd924810",
+      "n_turns_attempted": 30,
+      "n_turns_completed": 30,
+      "status": "ok",
+      "code_distribution": {
+        "W": 629,
+        "P": 360,
+        "A": 61,
+        "X": 90,
+        "B": 540,
+        "U": 240
+      },
+      "motion_agreements": 15,
+      "motion_disagreements": 0,
+      "structural_events_by_kind": {
+        "agent_split": 30,
+        "win_marker_rarity": 30
+      },
+      "persistence_events": 0,
+      "outcome_resolutions": 0,
+      "template_drift_events": 0,
+      "templates_promoted": 0,
+      "pending_at_end": 3,
+      "cells_demoted": 119,
+      "smoothed_cells_total": 29,
+      "kept_by_visual_total": 0,
+      "kept_by_cause_total": 1,
+      "trust_min": 0.0,
+      "trust_max": 0.39,
+      "n_low_trust_cells_at_end": 4,
+      "lc_advances": 0,
+      "errors": [],
+      "action_semantics": {
+        "n_actions_seen": 4,
+        "n_confirmed": 4,
+        "per_action": [
+          {
+            "action_id": 1,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 8
+              },
+              {
+                "delta": [
+                  1,
+                  0
+                ],
+                "count": 2
+              }
+            ]
+          },
+          {
+            "action_id": 2,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 3,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          },
+          {
+            "action_id": 4,
+            "total_seen": 10,
+            "confirmed_delta": [
+              0,
+              0
+            ],
+            "observations": [
+              {
+                "delta": [
+                  0,
+                  0
+                ],
+                "count": 10
+              }
+            ]
+          }
+        ]
+      },
+      "frames": [
+        {
+          "turn": 5,
+          "frame_path": "turn_005_frame.png",
+          "annotated_path": "turn_005_annot.png",
+          "agent_pos": [
+            3,
+            3
+          ],
+          "code_grid": [
+            "WPWWPPWW",
+            "WPWAPPWW",
+            "WWWWWWWW",
+            "WXWAPPWW",
+            "BBBBBBBB",
+            "BBXPPXBB",
+            "BBPPBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                94,
+                174,
+                161,
+                225
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                174,
+                174,
+                225,
+                225
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                94,
+                81,
+                145
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                270,
+                81,
+                337
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                350,
+                81,
+                417
+              ]
+            },
+            {
+              "id": "p4",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                94,
+                161,
+                145
+              ]
+            },
+            {
+              "id": "p5",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                270,
+                161,
+                337
+              ]
+            },
+            {
+              "id": "p6",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                350,
+                161,
+                417
+              ]
+            },
+            {
+              "id": "p7",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                270,
+                225,
+                337
+              ]
+            },
+            {
+              "id": "p8",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                350,
+                225,
+                417
+              ]
+            },
+            {
+              "id": "p9",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                318,
+                142,
+                369,
+                273
+              ]
+            },
+            {
+              "id": "p10",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                398,
+                110,
+                465,
+                385
+              ]
+            },
+            {
+              "id": "p11",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                174,
+                449,
+                209
+              ]
+            },
+            {
+              "id": "p12",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                222,
+                449,
+                273
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                174,
+                94,
+                225,
+                145
+              ]
+            },
+            {
+              "id": "x2",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                110,
+                369,
+                161
+              ]
+            },
+            {
+              "id": "x3",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                270,
+                369,
+                385
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 10,
+          "frame_path": "turn_010_frame.png",
+          "annotated_path": "turn_010_annot.png",
+          "agent_pos": [
+            3,
+            3
+          ],
+          "code_grid": [
+            "WPWWPPWW",
+            "WPWAPPWW",
+            "WWWWWWWW",
+            "WXWAPPWW",
+            "BBBBBBBB",
+            "BBXPPXBB",
+            "BBPPBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                94,
+                174,
+                161,
+                225
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                174,
+                174,
+                225,
+                225
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                94,
+                81,
+                145
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                270,
+                81,
+                337
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                350,
+                81,
+                417
+              ]
+            },
+            {
+              "id": "p4",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                94,
+                161,
+                145
+              ]
+            },
+            {
+              "id": "p5",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                270,
+                161,
+                337
+              ]
+            },
+            {
+              "id": "p6",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                350,
+                161,
+                417
+              ]
+            },
+            {
+              "id": "p7",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                270,
+                225,
+                337
+              ]
+            },
+            {
+              "id": "p8",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                350,
+                225,
+                417
+              ]
+            },
+            {
+              "id": "p9",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                318,
+                142,
+                369,
+                273
+              ]
+            },
+            {
+              "id": "p10",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                398,
+                110,
+                465,
+                385
+              ]
+            },
+            {
+              "id": "p11",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                174,
+                449,
+                209
+              ]
+            },
+            {
+              "id": "p12",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                222,
+                449,
+                273
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                174,
+                94,
+                225,
+                145
+              ]
+            },
+            {
+              "id": "x2",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                110,
+                369,
+                161
+              ]
+            },
+            {
+              "id": "x3",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                270,
+                369,
+                385
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 15,
+          "frame_path": "turn_015_frame.png",
+          "annotated_path": "turn_015_annot.png",
+          "agent_pos": [
+            3,
+            3
+          ],
+          "code_grid": [
+            "WPWWPPWW",
+            "WPWAPPWW",
+            "WWWWWWWW",
+            "WXWAPPWW",
+            "BBBBBBBB",
+            "BBXPPXBB",
+            "BBPPBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                94,
+                174,
+                161,
+                225
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                174,
+                174,
+                225,
+                225
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                94,
+                81,
+                145
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                270,
+                81,
+                337
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                350,
+                81,
+                417
+              ]
+            },
+            {
+              "id": "p4",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                94,
+                161,
+                145
+              ]
+            },
+            {
+              "id": "p5",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                270,
+                161,
+                337
+              ]
+            },
+            {
+              "id": "p6",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                350,
+                161,
+                417
+              ]
+            },
+            {
+              "id": "p7",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                270,
+                225,
+                337
+              ]
+            },
+            {
+              "id": "p8",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                350,
+                225,
+                417
+              ]
+            },
+            {
+              "id": "p9",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                318,
+                142,
+                369,
+                273
+              ]
+            },
+            {
+              "id": "p10",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                398,
+                110,
+                465,
+                385
+              ]
+            },
+            {
+              "id": "p11",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                174,
+                449,
+                209
+              ]
+            },
+            {
+              "id": "p12",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                222,
+                449,
+                273
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                174,
+                94,
+                225,
+                145
+              ]
+            },
+            {
+              "id": "x2",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                110,
+                369,
+                161
+              ]
+            },
+            {
+              "id": "x3",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                270,
+                369,
+                385
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 20,
+          "frame_path": "turn_020_frame.png",
+          "annotated_path": "turn_020_annot.png",
+          "agent_pos": [
+            3,
+            3
+          ],
+          "code_grid": [
+            "WPWWPPWW",
+            "WPWAPPWW",
+            "WWWWWWWW",
+            "WXWAPPWW",
+            "BBBBBBBB",
+            "BBXPPXBB",
+            "BBPPBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                94,
+                174,
+                161,
+                225
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                174,
+                174,
+                225,
+                225
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                94,
+                81,
+                145
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                270,
+                81,
+                337
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                350,
+                81,
+                417
+              ]
+            },
+            {
+              "id": "p4",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                94,
+                161,
+                145
+              ]
+            },
+            {
+              "id": "p5",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                270,
+                161,
+                337
+              ]
+            },
+            {
+              "id": "p6",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                350,
+                161,
+                417
+              ]
+            },
+            {
+              "id": "p7",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                270,
+                225,
+                337
+              ]
+            },
+            {
+              "id": "p8",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                350,
+                225,
+                417
+              ]
+            },
+            {
+              "id": "p9",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                318,
+                142,
+                369,
+                273
+              ]
+            },
+            {
+              "id": "p10",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                398,
+                110,
+                465,
+                385
+              ]
+            },
+            {
+              "id": "p11",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                174,
+                449,
+                209
+              ]
+            },
+            {
+              "id": "p12",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                222,
+                449,
+                273
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                174,
+                94,
+                225,
+                145
+              ]
+            },
+            {
+              "id": "x2",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                110,
+                369,
+                161
+              ]
+            },
+            {
+              "id": "x3",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                270,
+                369,
+                385
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        },
+        {
+          "turn": 25,
+          "frame_path": "turn_025_frame.png",
+          "annotated_path": "turn_025_annot.png",
+          "agent_pos": [
+            3,
+            3
+          ],
+          "code_grid": [
+            "WPWWPPWW",
+            "WPWAPPWW",
+            "WWWWWWWW",
+            "WXWAPPWW",
+            "BBBBBBBB",
+            "BBXPPXBB",
+            "BBPPBBBB",
+            "UUUUUUUU"
+          ],
+          "entities": [
+            {
+              "id": "a",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                94,
+                174,
+                161,
+                225
+              ]
+            },
+            {
+              "id": "a2",
+              "code": "A",
+              "role": "agent",
+              "bbox_pixels": [
+                174,
+                174,
+                225,
+                225
+              ]
+            },
+            {
+              "id": "p1",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                94,
+                81,
+                145
+              ]
+            },
+            {
+              "id": "p2",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                270,
+                81,
+                337
+              ]
+            },
+            {
+              "id": "p3",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                30,
+                350,
+                81,
+                417
+              ]
+            },
+            {
+              "id": "p4",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                94,
+                161,
+                145
+              ]
+            },
+            {
+              "id": "p5",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                270,
+                161,
+                337
+              ]
+            },
+            {
+              "id": "p6",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                94,
+                350,
+                161,
+                417
+              ]
+            },
+            {
+              "id": "p7",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                270,
+                225,
+                337
+              ]
+            },
+            {
+              "id": "p8",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                174,
+                350,
+                225,
+                417
+              ]
+            },
+            {
+              "id": "p9",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                318,
+                142,
+                369,
+                273
+              ]
+            },
+            {
+              "id": "p10",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                398,
+                110,
+                465,
+                385
+              ]
+            },
+            {
+              "id": "p11",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                110,
+                449,
+                161
+              ]
+            },
+            {
+              "id": "p12",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                174,
+                449,
+                209
+              ]
+            },
+            {
+              "id": "p13",
+              "code": "P",
+              "role": "pink sediment",
+              "bbox_pixels": [
+                414,
+                222,
+                449,
+                273
+              ]
+            },
+            {
+              "id": "x1",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                174,
+                94,
+                225,
+                145
+              ]
+            },
+            {
+              "id": "x2",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                110,
+                369,
+                161
+              ]
+            },
+            {
+              "id": "x3",
+              "code": "X",
+              "role": "win marker",
+              "bbox_pixels": [
+                318,
+                270,
+                369,
+                385
+              ]
+            },
+            {
+              "id": "u1",
+              "code": "U",
+              "role": "HUD / counter",
+              "bbox_pixels": [
+                446,
+                0,
+                511,
+                511
+              ]
+            }
+          ]
+        }
+      ],
+      "elapsed_seconds": 29.5
+    }
+  ]
+}

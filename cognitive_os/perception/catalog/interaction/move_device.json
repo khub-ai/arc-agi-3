@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "move_device",
+  "primitive_kind": "interaction",
+  "description":    "Moves the whole device (piercer_head + piercer_tail + any carried movable_blocks) by one cell in a specific direction. Distinct from extend_tail because this changes the device's position, not its length.",
+  "vlm_recognition_hints": [
+    "An action that shifts all parts of the device together by the same delta — head, tail, and carried blocks all translate.",
+    "When no movable_block is carried, only the device shifts; when one is carried, it moves with the device.",
+    "Often paired with extend_tail / retract_tail to make a complete control set."
+  ],
+  "anchored_in_samples": ["sk48_1of7"]
+}

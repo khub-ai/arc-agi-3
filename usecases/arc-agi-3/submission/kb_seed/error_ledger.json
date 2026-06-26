@@ -1,0 +1,102 @@
+[
+ {
+  "category": "mover_goal_identity",
+  "description": "carried mover/goal as TEXT/role only -> lc2 digest could swap them; no bitmap to match",
+  "variation": "orientation",
+  "fix": "carry + match the entity SHAPE across levels",
+  "level": "tn36/lc2",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "mover_goal_identity",
+  "description": "position-guessed lc3 agent=lower from lc2 position; agent POSITION changed but SHAPE did not",
+  "variation": "position,size",
+  "fix": "match by SHAPE, never position/size/orientation",
+  "level": "tn36/lc3",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "legend_detail",
+  "description": "missed that lc3 box2/box4 icons differ from lc2 (big square / small dot vs arrows)",
+  "variation": "shape",
+  "fix": "a novel/changed icon -> curiosity-probe it in detail immediately",
+  "level": "tn36/lc3",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "gridded_frame_read",
+  "description": "read the 1270px GRIDDED display; grid lines at bar positions read as set bars",
+  "variation": "rendering",
+  "fix": "read the clean 64px substrate frame, not the gridded display",
+  "level": "tn36/lc3",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "contaminated_frame_read",
+  "description": "analyzed turn_NNN_anim filmstrips that mixed in stale frames from earlier runs/levels -> false motion reads (\"lower steps up\", \"box2=UP demo-confirmed\")",
+  "variation": "cross-run frame-dump reuse (dump keyed by turn# and shared)",
+  "fix": "clear/namespace the per-turn anim dump per-run BEFORE analyzing; on a surprising motion, re-verify frame provenance",
+  "level": "tn36-lc3",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "preview_demonstration_read",
+  "description": "called the box2/box4 legend click-preview canned/no-effect -- it actually ANIMATES a grey demonstration silhouette (box2 grows, box4 shrinks). Discarded the demo three ways at once.",
+  "variation": "demo drawn in GREY (not the live yellow agent), animated mid-sequence then reverts, and in a separate LEFT region",
+  "fix": "read preview demos via grey silhouette diff-vs-static across ALL frames over the WHOLE frame; never conclude an action effect from the live-agent colour at start/settled only",
+  "level": "tn36-lc3",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "kb_migration_data_loss",
+  "description": "ran solutions_kb/kb_paths with a TEMP COS_KB_ROOT while the real legacy store existed; the move-based migration relocated the real file into the throwaway temp dir and it vanished from the real KB",
+  "variation": "environment (alternate COS_KB_ROOT)",
+  "fix": "never run tests/smoke against the default KB; isolate with a temp root BUT migration must be non-destructive",
+  "level": "",
+  "resolution": "migrate via shutil.COPY not MOVE so a temp/test root can never cannibalise real data; recover a lost file from the temp dir it was moved to",
+  "solution_id": "",
+  "resolved": true
+ },
+ {
+  "category": "lc4_win_condition_fill_vs_mechanic",
+  "description": "Committed to FILL-the-purple-U across 4 fires (DOWN+GROW variants, +/-ROTATE) before exercising box5 (the unexplored purple-control). Fill was never achievable by GROW: x2 underfills (col57), x3 overflows the U top.",
+  "variation": "size",
+  "fix": "When a hypothesis fails ~2x AND an unexercised mechanic exists (e.g. box5/purple-control), probe that mechanic before further tuning the failing hypothesis.",
+  "level": "tn36-lc4",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "hypothesis_perseveration",
+  "description": "Kept tuning a failing fill hypothesis (more GROW) instead of switching to probe the unexplored box5 mechanic.",
+  "variation": "",
+  "fix": "After 2 same-class failures, switch to probing unexplored mechanics/actions before more parameter tuning.",
+  "level": "tn36-lc4",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ },
+ {
+  "category": "panel_decode",
+  "description": "decode_panel did not flag the BLACK horizontal TOP-BAR (row 0) of a direction code as set, only the vertical stem rows -> UP read as row5 instead of row0+row5, producing an incomplete program + canned fire",
+  "variation": "orientation",
+  "fix": "when reading bar-codes, ZOOM/grid_readout to catch horizontal top-bar rows; do not trust decode_panel set-flags for the top edge row",
+  "level": "lc5",
+  "resolution": "",
+  "solution_id": "",
+  "resolved": false
+ }
+]

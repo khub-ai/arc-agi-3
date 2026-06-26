@@ -1,0 +1,25 @@
+{
+  "primitive_id": "working_glyph",
+  "primitive_kind": "entity_role",
+  "description": "The entity whose state (colour, shape, orientation, pattern) the player manipulates by visiting state-changer triggers. The agent does NOT move it directly — the working_glyph mutates in place when triggers fire.",
+  "motion_class": "static",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Often larger and more visually complex than other entities; sits inside a wall-enclosed chamber.",
+    "Has a visually-similar partner elsewhere on the frame (the reference_glyph) — the two share shape, palette, or geometric family.",
+    "The working_glyph is usually the LARGER or MORE-DETAILED member of the pair; the reference is smaller/simpler."
+  ],
+  "interaction_signature": {
+    "trigger": "agent visits a shape_changer / color_changer / orientation_trigger",
+    "effect": "the working_glyph's state cycles through a fixed sequence (next colour, next shape, next orientation)",
+    "observable_change": "the working_glyph's appearance changes between frames while its position stays fixed"
+  },
+  "planner_consumption": {
+    "node_kind": "ALIGNMENT_DIM (parent of state-cycle triggers)",
+    "directive_template": "MOVE_TO(trigger) repeatedly until working_glyph matches reference_glyph"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ],
+  "extension_notes": "Some games have multiple working glyphs each mutated by different triggers. The catalog supports this — emit one working_glyph entity per such instance."
+}

@@ -1,0 +1,12 @@
+{
+  "primitive_id":   "pair_match",
+  "primitive_kind": "match_condition",
+  "description":    "A working pair (two entities forming a pair via spatial association or sequence position) must visually equal one of N reference pairs. The agent cycles working entities through variants until a reference pair is matched.",
+  "vlm_recognition_hints": [
+    "Multiple reference pairs visible in a structured layout (grid, connected pairs).",
+    "A working area below or beside the references holds a sequence the agent can edit.",
+    "Match is achieved when the working pair's contents equal any one reference pair's contents."
+  ],
+  "anchored_in_samples": ["tr87_1of7"],
+  "extension_notes": "Match may include invariance rules (rotation, reflection, scaling). The match_condition entry should record which invariances apply."
+}

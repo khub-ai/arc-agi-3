@@ -1,72 +1,99 @@
-# arc-agi-3
+# arc-agi-3 — KHUB.AI · ARC Prize 2026 submission
 
-**ARC-AGI-3 domain adapter for the [Cognitive OS Engine](https://github.com/khub-ai/cognitive-os-engine).**
+KHUB.AI's entry for [ARC Prize 2026 — ARC‑AGI‑3](https://arcprize.org/competitions/2026/arc-agi-3):
+a self‑contained, **offline** agent that plays the benchmark's interactive games
+by running the **Cognitive OS (COS)** — a general, VLM‑in‑the‑loop cognitive
+architecture — rather than any game‑specific code.
 
-This repo is the in-progress [ARC Prize 2026](https://arcprize.org/competitions/2026) submission scaffold.  All reasoning lives in the engine (domain-agnostic, MIT-0); this repo contributes only the thin domain boundary:
+This repository is the **open‑sourced solution** (MIT‑0). It is a curated,
+automatically‑synced slice of the COS engine (developed in a separate repository)
+containing exactly the code the agent runs — nothing game‑specific, and no
+per‑game answers.
 
-| Layer | What it does |
+## Idea
+
+ARC‑AGI‑3 presents **unseen** interactive games and measures how efficiently an
+agent explores, models each game's rules, and acts toward the win condition. COS
+approaches every game the way a general problem‑solver would:
+
+- **Perception** turns each frame into structural facts (components, entities,
+  relations) — the vision‑language model reports *what it sees*; the substrate
+  *measures* it.
+- **World model** accumulates claims about the game's mechanics from what
+  actually happens when the agent acts.
+- **Means‑ends + exploration** pick actions: pursue the win condition when a path
+  is known, otherwise explore to reduce uncertainty.
+- **Strategy** (the VLM) arbitrates at the hard steps.
+
+No code branches on a game identifier; new capability is added as a
+generalization of the substrate, never a per‑game rule.
+
+## How the submission runs
+
+The competition harness calls an agent once per turn, but COS owns its own play
+loop — so the two are bridged by control inversion:
+
+```
+ARC-AGI-3 harness ──(per-turn choose_action)──▶ CosAgent
+                                                  │   control-inversion bridge
+                                                  ▼
+                  ExploratoryDriver  (perception · world model · means-ends · exploration · strategy)
+                                                  │   file-handoff prompts
+                                                  ▼
+                  cos_responder ──▶ local model (gemma-4-31b via vLLM) — offline
+```
+
+Everything runs **offline**: the model is served locally (no internet), and the
+agent starts each game with a **competition‑clean knowledge base** — general,
+game‑agnostic priors only (`kb_seed/`), no per‑game memory. Within a run COS
+still learns (demonstration‑from‑preview, instincts, the claim/pursuit loop); it
+simply begins every unseen game cold, as the competition requires.
+
+## Layout
+
+| Path | What |
 |---|---|
-| **`ArcAdapter`** | Translates `arc_agi` frames (60×60 palette grid, state, levels_completed, available_actions) into the engine's `Observation` + `Event`s + `EntityModel`s. Maps generic `Action` → `arc_agi.Action`. |
-| **Tool suite** | BFS, connected-component labelling, symmetry detection, frame-diff / motion extractor — registered via `ToolRegistry` and invoked by miners, planner, and explorer. |
-| **Observer** *(Phase 5b)* | Visual oracle: `frame + typed question → typed answer`, backed by a pluggable VLM (Claude at launch, open-source for competition). |
-| **Mediator** *(Phase 5b)* | Common-sense oracle over `WorldStateSummary`, same pluggable backend surface. |
-| **Harness** *(Phase 5b)* | CLI that connects to the ARC-AGI-3 competition API and runs episodes through `cognitive_os.run_episode`. |
+| `cognitive_os/` | COS engine core — world model, planning, knowledge index |
+| `tools/governor_audit/perception_loop_v2/` | the exploratory driver, perception substrate, recall, instincts |
+| `usecases/arc-agi-3/python/` | the ARC SDK bridge (`backends`, `dsl`, `dsl_executor`) |
+| `usecases/arc-agi-3/submission/` | the competition wrapper — `cos_agent`, the bridge, `cos_responder`, the model backends, `kaggle_entry`, and `kb_seed/` (the seeded general knowledge) |
+| `ARC-AGI-3-Agents/` | the ARC‑AGI‑3 agent framework the submission plugs into |
 
-> **License:** [MIT No Attribution (MIT-0)](LICENSE) — the ARC Prize competition rules require permissive public-domain-equivalent licensing (CC0 or MIT-0). This repo and its engine dependency both comply.
+## Running it
 
-## Install
+### Offline — the competition path
 
-```bash
-pip install -e .          # adapter + domain tools only
-pip install -e ".[llm]"   # + Anthropic SDK (Observer/Mediator backends)
-pip install -e ".[dev]"   # + pytest
+The submission is a Kaggle notebook
+(`usecases/arc-agi-3/submission/kaggle_notebook_skeleton.py`) that runs with
+internet off and a GPU. In order, it:
+
+1. sets the offline / strict environment and puts the bundled code on `sys.path`;
+2. serves `gemma-4-31b-it` locally with vLLM;
+3. seeds a fresh KB from `kb_seed/`;
+4. builds a `CosAgent` and plays the eval games through the framework loop.
+
+The model is selected by a slug, so it is swappable — `vllm/<host>/<model>` for a
+local vLLM endpoint, or `ollama/<host>/<tag>` for Ollama.
+
+### Local development
+
+```
+python usecases/arc-agi-3/submission/run_framework_offline.py <game-id>
 ```
 
-## Status
+plays one game through the real framework loop offline (fresh, seeded KB by
+default; add `--warm-kb` to reuse accumulated knowledge for a cold‑vs‑warm
+comparison).
 
-| Phase | Deliverable | Status |
-|---|---|---|
-| 5a | Scaffold + tool suite + adapter skeleton (no LLM) | Done |
-| 5b | Observer + Mediator + harness + full episode run | Done |
-| 5c | Cross-episode knowledge persistence (CachedSolutions) | Done |
-| 6a | Live SDK parity (dry-run, real arc_agi types verified) | Done |
-| 6b | Open-source LLM backend | Pending |
-| 6c | Competition dry run | Pending |
+## Knowledge & compliance
 
-## Architecture invariants
+The agent ships only **general, game‑agnostic** knowledge (`kb_seed/`), verified
+by a compliance gate that rejects any per‑game entry an unseen game could reach.
+The repository is produced from the engine by a sync tool that keeps only the
+shipping code, scrubs environment‑specific paths, and blocks publication on any
+residual — so what's here is exactly, and only, the runnable solution.
 
-These mirror the engine's [standing directives](https://github.com/khub-ai/cognitive-os-engine/blob/main/cognitive_os/DESIGN.md) — they are not negotiable:
+## License
 
-1. **No game-specific code leaks into the engine.** Every new capability is a generalisation of the substrate (new miner, claim type, planner heuristic), not a branch on a game identifier.
-2. **Every phase advances debugging, problem-solving, and tool creation.** These three capabilities are the reason the system exists.
-3. **Cross-episode knowledge accumulation is first-class.** `PostMortem`, `Option`s, and `CachedSolution`s survive across games.
-4. **Never re-import the retired `ensemble.py` game-specific heuristics.** The replaced system accumulated per-game logic that bloated and stopped generalising; that path does not come back.
-
-## Running an episode
-
-```bash
-export ARC_API_KEY=...                # competition API key
-export ANTHROPIC_API_KEY=...          # only for --backend anthropic
-
-arc-agi-3 --game-id ls20 --dry-run                         # 10-step live parity check
-arc-agi-3 --game-id ls20                                   # null backend, ephemeral
-arc-agi-3 --game-id ls20 --backend anthropic               # Claude Observer/Mediator
-arc-agi-3 --game-id ls20 --episodes 5                      # intra-run accumulation
-arc-agi-3 --game-id ls20 --knowledge-dir ./store           # persist across invocations
-arc-agi-3 --game-id ls20 --knowledge-dir ./store \
-          --no-save-knowledge                              # read-only (competition)
-```
-
-The `--dry-run` flag runs a bounded 10-step episode with `NullBackend`
-(zero LLM cost) and prints a parity report — frame shape, state-name
-transitions, action space size, entity / hypothesis / surprise
-counts.  Run it first after any SDK upgrade to confirm adapter
-shapes still agree with whatever the live API hands back.
-
-## Tests
-
-```bash
-pytest
-```
-
-Tests use synthetic / recorded fixtures only; the live ARC-AGI-3 API is not hit in CI.
+[MIT No Attribution (MIT‑0)](LICENSE) — the permissive, public‑domain‑equivalent
+licensing the ARC Prize rules require.

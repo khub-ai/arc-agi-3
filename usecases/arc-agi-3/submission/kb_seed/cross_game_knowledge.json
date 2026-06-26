@@ -1,0 +1,38 @@
+{
+ "schema_version": 1,
+ "games": {
+  "re86": {
+   "game_id": "re86",
+   "signature": {
+    "role_multiset": {
+     "agent": 2,
+     "hud": 1,
+     "target": 8
+    },
+    "grid": {
+     "rows": null,
+     "cols": null,
+     "cell": null
+    },
+    "n_colors": 5,
+    "indicator_present": true,
+    "action_arity": 5
+   },
+   "knowledge": [
+    {
+     "type": "strategic_approach",
+     "content": "CROSS-GAME technique: when a controllable cursor is ringed by N same-colour satellites arranged as the tips of a plus/ring, the satellites DEFINE the cursor's goal configuration - aim the cursor at their centre. Derive it with the abstraction ladder: group entities by colour into subsystems (a distinguished cursor + its satellites); equivalent subsystems share the same goal (unite/transfer); satisfy each. Position by EXACT move count when steps are fixed-size, and account for the curiosity-probe's first move before strategy takes over. Refuted here: overlapping a single satellite, sweeping a cursor line across them, and uniting the two cursors (impossible by movement-phase) all score 0.",
+     "credence": 0.55,
+     "n_supporting": 1,
+     "n_contradicting": 0,
+     "first_trial": "re86_lc0_solved_2026_06_13",
+     "last_trial": "re86_lc0_solved_2026_06_13",
+     "provenance": "actor"
+    }
+   ],
+   "n_trials_contributing": 1,
+   "last_updated_iso": "2026-06-13T19:22:16Z"
+  }
+ },
+ "last_updated_iso": "2026-06-13T19:22:16Z"
+}

@@ -1,0 +1,15 @@
+{
+  "primitive_id": "agent",
+  "primitive_kind": "entity_role",
+  "description": "The controllable agent the user / player directly moves. Its bbox displaces with cardinal-action input; it is the only entity whose position changes in response to action commands. Synonym of 'avatar'.",
+  "motion_class": "agent_controlled",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Small, visually-distinctive sprite that stays roughly the same shape across frames but changes POSITION between frames.",
+    "Often the only entity affected by movement actions (cardinal direction keys); its position deltas mirror the action taken.",
+    "Sometimes a multi-colour composite (e.g., two halves of different palettes) rather than a single-colour block."
+  ],
+  "anchored_in_samples": [
+    "ls20-9607627b 1/7 spawn entity"
+  ]
+}

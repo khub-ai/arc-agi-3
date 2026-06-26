@@ -1,0 +1,25 @@
+{
+  "primitive_id": "agent_avatar",
+  "primitive_kind": "entity_role",
+  "description": "The controllable agent the player directly moves. Usually visually distinctive (often a bright colour or a small multi-colour sprite) and positioned at the spawn cell at level start.",
+  "motion_class": "agent_controlled",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Small, visually-distinctive entity that stays roughly the same shape across frames but changes position.",
+    "Often the only entity affected by movement actions (cardinal direction keys); its position deltas mirror the action taken.",
+    "Sometimes a multi-colour composite (e.g., two halves of different palettes) rather than a single-colour block."
+  ],
+  "interaction_signature": {
+    "trigger": "any movement or position-changing action",
+    "effect": "agent's bbox shifts by the action's expected delta",
+    "observable_change": "the same shape reappears at a new position in the next frame"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_CELL or REACH_ENTITY (the agent is the moving subject of these goals)",
+    "intent": "the agent's current position is the starting point for every plan-tree dispatch"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ],
+  "extension_notes": "Some games may not have a visible agent (HUD-only control). When the VLM can't find one, mark agent_avatar as null in the inventory rather than guessing."
+}

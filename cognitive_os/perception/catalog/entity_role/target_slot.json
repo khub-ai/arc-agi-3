@@ -1,0 +1,25 @@
+{
+  "primitive_id": "target_slot",
+  "primitive_kind": "entity_role",
+  "description": "A static slot or shell that another entity must overlap to satisfy a win condition. Typically a hollow shape (frame, ring, square outline) with an interior the size of the target entity.",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Hollow shape — a frame or ring rather than a solid block.",
+    "Sized to receive a specific other entity; visually complementary (filled ball + hollow shell, or square peg + square hole).",
+    "Often shares palette with the entity that must overlap it (the 'matching colour' cue)."
+  ],
+  "interaction_signature": {
+    "trigger": "another entity occupies the target_slot's centre",
+    "effect": "win condition satisfied (or progress increment)",
+    "observable_change": "level advance / state-change signalling completion"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_CELL (target = slot's centre)",
+    "intent": "win-state slot for the related entity to overlap"
+  },
+  "anchored_in_samples": [
+    "r11l_1of6"
+  ],
+  "extension_notes": "The related_to field on the target_slot names the entity expected to overlap it. The VLM should propose the relationship based on shape complementarity and shared palette."
+}

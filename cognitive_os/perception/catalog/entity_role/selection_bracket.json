@@ -1,0 +1,25 @@
+{
+  "primitive_id": "selection_bracket",
+  "primitive_kind": "entity_role",
+  "description": "A visual cue (typically a bracket or frame shape) marking which position in a working_sequence is currently editable. Often composed of multiple non-touching parts that together form one U-shape or rectangle.",
+  "motion_class": "static",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Two horizontal bars at top and bottom of a region, or four corner pieces, framing a specific area.",
+    "Smaller and visually 'lighter' than the elements it frames; usually a single bright palette (often white).",
+    "Position shifts between frames when the agent advances through positions — that's the strongest cue."
+  ],
+  "interaction_signature": {
+    "trigger": "advance_bracket action",
+    "effect": "bracket moves to the next position in the sequence",
+    "observable_change": "bracket's bbox shifts to neighbouring sub-position"
+  },
+  "planner_consumption": {
+    "node_kind": "(state-tracking — informational)",
+    "intent": "current editing position; combined with cycle_at_bracket to drive working_sequence updates"
+  },
+  "anchored_in_samples": [
+    "tr87_1of7"
+  ],
+  "extension_notes": "PERCEPTION CHALLENGE: bracket is often composed of spatially-separated parts. The system must recognise them as ONE entity. See `feedback_per_cell_entity_grouping.md` for the general principle."
+}

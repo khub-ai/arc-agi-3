@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "reference_pair",
+  "primitive_kind": "relationship_kind",
+  "description":    "Two reference entities that together form one valid matching pattern. The working entities must reproduce one such pair. Pairs are usually connected visually (line, bracket) or grouped by spatial proximity.",
+  "vlm_recognition_hints": [
+    "Multiple pairs visible on the frame; each pair shares visual similarity within the pair and contrast across pairs.",
+    "Pairs may be connected by lines, brackets, or grouped in 2-element rows.",
+    "Total pair count is usually small (4-8 pairs in a single level)."
+  ],
+  "anchored_in_samples": ["tr87_1of7"]
+}

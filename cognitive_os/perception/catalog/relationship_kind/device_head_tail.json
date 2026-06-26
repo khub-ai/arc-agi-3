@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "device_head_tail",
+  "primitive_kind": "relationship_kind",
+  "description":    "A composite physical device made of a head (piercer_head) and an attached tail (piercer_tail). The two move together as one unit; the tail is extendable independently. Visualised as visually attached (no gap) at the head's edge.",
+  "vlm_recognition_hints": [
+    "A bordered box adjacent to a thin striped strip extending from one side, with no visible gap between them.",
+    "When the device moves, head + tail translate together; when tail extends/retracts, head stays.",
+    "Recognise as ONE device, not two separate entities."
+  ],
+  "anchored_in_samples": ["sk48_1of7"]
+}

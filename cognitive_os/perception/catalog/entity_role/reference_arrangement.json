@@ -1,0 +1,24 @@
+{
+  "primitive_id": "reference_arrangement",
+  "primitive_kind": "entity_role",
+  "description": "A region of the frame showing the TARGET arrangement of movable elements. The agent's job is to manipulate the working entities (movable_blocks, glyphs, sequence positions) until their arrangement matches this reference.",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Wider multi-colour band, often near the bottom of the frame (below a divider_strip).",
+    "Contains palettes that match the movable elements above (red / blue / green blocks reproduced in the band).",
+    "Visually 'frozen' — doesn't change between frames; the working elements change to match it."
+  ],
+  "interaction_signature": {
+    "trigger": "(static reference)",
+    "effect": "n/a",
+    "observable_change": "stays unchanged"
+  },
+  "planner_consumption": {
+    "node_kind": "VERIFY_MATCH",
+    "intent": "win condition: working arrangement equals reference_arrangement"
+  },
+  "anchored_in_samples": [
+    "sk48_1of7"
+  ]
+}

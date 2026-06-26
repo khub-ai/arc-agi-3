@@ -1,0 +1,25 @@
+{
+  "primitive_id": "wall",
+  "primitive_kind": "entity_role",
+  "description": "An impassable region of the game board, typically rendered in a distinctive palette and covering substantial area as fragmented patches. NOT outlined as a discrete bounded entity — the palette identity IS the role. Anywhere this palette appears (with exceptions for specific shaped sub-entities) is wall.",
+  "motion_class": "region",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Large palette region, often forming the border of the playable area + scattered impassable patches inside.",
+    "Same palette appears in multiple disconnected patches; you should treat them all as one conceptual wall, not as separate entities per patch.",
+    "Specific shaped sub-regions that share the wall palette may be functionally distinct (e.g., bar segments, HUD strips) — recognise them by their position and shape, not by their palette."
+  ],
+  "interaction_signature": {
+    "trigger": "agent tries to move into a wall cell",
+    "effect": "movement blocked",
+    "observable_change": "agent position unchanged after the blocked move"
+  },
+  "planner_consumption": {
+    "node_kind": "(none — passability gate)",
+    "intent": "BFS / pathfinding excludes wall cells from reachable set"
+  },
+  "anchored_in_samples": [
+    "r11l_1of6"
+  ],
+  "extension_notes": "Palette-region role — see `feedback_palette_authoritative_source.md`. The output schema represents wall via a palette → role mapping rather than per-instance bboxes. Exceptions (shaped functional entities sharing the wall palette) are emitted as separate entities."
+}

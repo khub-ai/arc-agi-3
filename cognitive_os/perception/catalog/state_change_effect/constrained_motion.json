@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "constrained_motion",
+  "primitive_kind": "state_change_effect",
+  "description":    "An entity (typically linked_midpoint) moves as a function of another entity's motion, constrained by a geometric relationship (collinearity, distance, sequence position).",
+  "vlm_recognition_hints": [
+    "Two or more entities' positions change together across frames in a structured way (always on a line, always at a fixed ratio, etc.).",
+    "The constrained entity has no independent action — its position is derived from the others'.",
+    "Visualised by rigid_link lines that update between frames."
+  ],
+  "anchored_in_samples": ["r11l_1of6"]
+}

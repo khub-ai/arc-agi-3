@@ -1,0 +1,10 @@
+{
+  "primitive_id":   "position_swap",
+  "primitive_kind": "state_change_effect",
+  "description":    "Two entities exchange positions in a single action. Distinct from teleport (one entity moves to a click target) because the swap moves TWO entities — they swap their bboxes.",
+  "vlm_recognition_hints": [
+    "Across a frame pair, two entities' positions exchange (entity A's old position = entity B's new position, and vice versa).",
+    "Typically triggered by a special action like click_to_swap or clicking on a specific anchor entity."
+  ],
+  "anchored_in_samples": ["r11l_1of6"]
+}

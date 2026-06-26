@@ -1,0 +1,31 @@
+{
+  "primitive_id": "reference_pair_member",
+  "primitive_kind": "entity_role",
+  "description": "One of two visually-related entities that form a reference pair. The agent must reproduce or match the pair's pattern using working_sequence positions to win.",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Appears in a 2-by-N or N-by-2 grid layout where rows or columns clearly pair up.",
+    "Each pair has internal visual similarity (shape or colour family); pairs may have a connecting visual element (line, bracket).",
+    "Multiple pairs visible on the same frame, often forming a 'reference set' the player draws from."
+  ],
+  "interaction_signature": {
+    "trigger": "(static reference; not directly interactable)",
+    "effect": "n/a (reference only)",
+    "observable_change": "stays unchanged"
+  },
+  "planner_consumption": {
+    "node_kind": "VERIFY_MATCH",
+    "intent": "the working_sequence must reproduce ONE of these pairs to win"
+  },
+  "anchored_in_samples": [
+    "tr87_1of7"
+  ],
+  "extension_notes": "Pair_id assignments are usually visible from connecting lines or proximity; the perception layer should propose pair_id by visual analysis and the operator confirms.",
+  "confusable_with": [
+    {
+      "primitive_id": "reference_glyph",
+      "note": "reference_pair_member is paired vertically with another card; reference_glyph is unpaired."
+    }
+  ]
+}

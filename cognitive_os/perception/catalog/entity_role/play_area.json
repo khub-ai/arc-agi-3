@@ -1,0 +1,31 @@
+{
+  "primitive_id": "play_area",
+  "primitive_kind": "entity_role",
+  "description": "The passable region of the game board where the agent can move and entities can sit. Like wall, the palette identity IS the role — not a per-instance bounded entity.",
+  "motion_class": "region",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Large palette region (often black or a uniform background colour) that wraps around the wall + discrete entities.",
+    "The complement of wall in most games; together they tile the board.",
+    "Distinguishable from outer-frame background by being inside the playable boundary."
+  ],
+  "interaction_signature": {
+    "trigger": "agent moves",
+    "effect": "movement succeeds in play_area cells",
+    "observable_change": "agent position advances by the action delta"
+  },
+  "planner_consumption": {
+    "node_kind": "(none — passability gate)",
+    "intent": "BFS / pathfinding considers play_area cells reachable"
+  },
+  "anchored_in_samples": [
+    "r11l_1of6"
+  ],
+  "extension_notes": "Palette-region role. Some games have multiple 'play_area' palettes (in-maze floor + out-of-maze background) — emit each as a separate palette-region entity with role play_area.",
+  "confusable_with": [
+    {
+      "primitive_id": "wall",
+      "note": "play_area is the floor (where the agent can walk); wall is the impassable barrier around it."
+    }
+  ]
+}

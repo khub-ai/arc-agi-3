@@ -1,0 +1,10 @@
+{
+  "primitive_id":   "teleport",
+  "primitive_kind": "state_change_effect",
+  "description":    "The agent (or another entity) is moved instantly to a non-adjacent cell. Observed when a single action produces a position delta larger than the action's nominal step size. Used by launchers to chain bounces across the board.",
+  "vlm_recognition_hints": [
+    "Across a frame pair, the agent's position changes by more than one cell despite only one action firing.",
+    "The pre-teleport position is adjacent to a launcher; the post-teleport position is several cells away."
+  ],
+  "anchored_in_samples": ["ls20_4of7"]
+}

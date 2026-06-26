@@ -1,0 +1,25 @@
+{
+  "primitive_id": "rigid_link",
+  "primitive_kind": "entity_role",
+  "description": "A thin visual line between two related entities (often endpoints + midpoint of a constrained-line configuration). Indicates that the connected entities share a geometric constraint (collinearity, distance, sequence).",
+  "motion_class": "static",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Single-pixel-wide diagonal or straight line between two entities.",
+    "Sometimes drawn in a distinctive palette (light grey is common) that contrasts with the entities it connects.",
+    "8-connectivity catches it as one line; 4-connectivity would split a diagonal into many one-pixel components."
+  ],
+  "interaction_signature": {
+    "trigger": "(passive — visualisation only)",
+    "effect": "n/a (output of the geometric constraint)",
+    "observable_change": "line redraws when endpoints move; otherwise stays"
+  },
+  "planner_consumption": {
+    "node_kind": "(none — informational)",
+    "intent": "signals to the planner that the connected entities form a constrained group"
+  },
+  "anchored_in_samples": [
+    "r11l_1of6"
+  ],
+  "extension_notes": "Multiple rigid_links between the same set of entities suggest a chain or multi-segment constraint; the perception layer should treat them as members of one member_of_group structure."
+}

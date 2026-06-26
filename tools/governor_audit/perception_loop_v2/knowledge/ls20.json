@@ -1,0 +1,23 @@
+{
+  "game_id": "ls20",
+  "_comment": "Per-game knowledge for ls20.  Cold-start file: only universal matchers declared.  Per-level roles will be added as live trials accumulate behaviour corroboration via the aggregator (or as operators seed templates from any future ls20 fixture).  Engine code is unchanged; this game ships as data.",
+  "universal_roles": [
+    {
+      "role": "agent",
+      "matcher": { "type": "harness_signal", "signal": "agent_position" },
+      "projection_mode": "centroid",
+      "cardinality": "single"
+    },
+    {
+      "role": "background_primary",
+      "matcher": { "type": "largest_static_region" }
+    },
+    {
+      "role": "background_secondary",
+      "matcher": { "type": "second_largest_static_region" }
+    }
+  ],
+  "levels": {
+    "_comment": "No per-level roles defined yet.  When ls20 fixtures with truth.json become available (or live trials accumulate templates), add per-level role entries plus truth_codes here.  No code change needed."
+  }
+}

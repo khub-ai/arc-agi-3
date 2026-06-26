@@ -1,0 +1,50 @@
+{
+ "schema_version": 1,
+ "entries": [
+  {
+   "id": "gen_7634831",
+   "text": "When a control acts on the entity NEAREST the click/target (click-to-move, proximity-select), placing several entities at several goals must be ORDERED and ROUTED so no action for one entity ever lands nearer an already-placed entity, or it gets dragged off its goal. Assign goals whose paths do not cross, move the farthest / longest-path entity first, and keep idle entities parked clear of the active path.",
+   "kind": "tactic",
+   "credence": 0.78,
+   "provenance": {
+    "from_game": "",
+    "lesson_id": "",
+    "note": "validated by a colour-merge multi-goal solve (2026-06-23)"
+   }
+  },
+  {
+   "id": "gen_4658192",
+   "text": "Track a moving entity within the PLAYFIELD region and by last-known-position continuity (pass its previous position as `near`), not by colour alone: a static HUD swatch, legend tile, or target marker of the SAME appearance will hijack a naive colour locate once the mover passes mid-field. Exclude the HUD/legend band when tracking a field mover.",
+   "kind": "perception",
+   "credence": 0.8,
+   "provenance": {
+    "from_game": "",
+    "lesson_id": "",
+    "note": "validated by a colour-merge multi-goal solve (2026-06-23)"
+   }
+  },
+  {
+   "id": "gen_780478",
+   "text": "Before committing IRREVERSIBLE combine/merge steps, decompose the goal specification into the exact sub-quantities it needs and check feasibility against the available resources -- COUNT them via the substrate, do not eyeball. Mind parity: an odd leftover that cannot be paired will strand, so plan the whole decomposition (e.g. an exact partition) up front rather than merging greedily.",
+   "kind": "strategy",
+   "credence": 0.75,
+   "provenance": {
+    "from_game": "",
+    "lesson_id": "",
+    "note": "validated by a colour-merge multi-goal solve (2026-06-23)"
+   }
+  },
+  {
+   "id": "gen_515928",
+   "text": "When a task needs sub-goals completed in a FIXED ORDER while also rearranging the pieces, COMPLETE each sub-goal the moment it becomes achievable rather than arranging everything first -- a completed sub-goal is usually locked or removed from play, so finishing it shrinks the remaining arrangement problem. Interleave completion with arrangement, working the order front-to-back.",
+   "kind": "strategy",
+   "credence": 0.65,
+   "provenance": {
+    "from_game": "",
+    "lesson_id": "",
+    "note": "re-authored game-agnostic from a game-flavoured technique lesson"
+   }
+  }
+ ],
+ "updated": 1782239022
+}

@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "click_to_swap",
+  "primitive_kind": "interaction",
+  "description":    "Clicking on a specific entity (typically an anchor_endpoint) swaps its position with the controllable entity (movable_pin). A special-purpose action distinct from the position-set / teleport actions.",
+  "vlm_recognition_hints": [
+    "Clicking a specific clickable entity produces a position swap rather than a teleport.",
+    "Often paired with click_to_teleport in geometric-puzzle games.",
+    "Best observed across a frame pair: two entities exchange positions in a single action."
+  ],
+  "anchored_in_samples": ["r11l_1of6"]
+}

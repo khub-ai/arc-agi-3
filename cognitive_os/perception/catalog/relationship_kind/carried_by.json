@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "carried_by",
+  "primitive_kind": "relationship_kind",
+  "description":    "An entity (carrier) holds another entity (cargo) such that the cargo moves with the carrier on subsequent motions. Typically established by piercing (piercer_tail through movable_block) or grabbing actions.",
+  "vlm_recognition_hints": [
+    "Watch frame deltas: the cargo's position shifts in lockstep with the carrier's position after some 'pierce' or 'grab' event.",
+    "Before the carrying action, the cargo is independent (stays still while the carrier moves); after, they move together.",
+    "Often establishable by an extend / pierce / grab interaction primitive."
+  ],
+  "anchored_in_samples": ["sk48_1of7"]
+}

@@ -1,0 +1,24 @@
+{
+  "primitive_id": "anchor_endpoint",
+  "primitive_kind": "entity_role",
+  "description": "A fixed endpoint in a constrained-line configuration. Does not move when the agent moves the other endpoint. Clicking ON the anchor_endpoint typically performs a special action (swap with the movable_pin, reset, etc.).",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "End ball of a constrained-line arrangement that visibly stays in place across multiple frames while other balls move.",
+    "Often visually darker / heavier than the movable_pin (more 'anchored'-looking).",
+    "Sometimes the anchor is itself clickable as a special action; the cue is that clicking it produces a non-motion effect (swap)."
+  ],
+  "interaction_signature": {
+    "trigger": "click_anchor action",
+    "effect": "swaps positions of anchor_endpoint and movable_pin (in games where this is supported)",
+    "observable_change": "the two endpoint balls exchange positions between frames"
+  },
+  "planner_consumption": {
+    "node_kind": "(state-anchor — informational)",
+    "intent": "fixed reference point for geometric constraint solving"
+  },
+  "anchored_in_samples": [
+    "r11l_1of6"
+  ]
+}

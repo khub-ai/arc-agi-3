@@ -1,0 +1,24 @@
+{
+  "primitive_id": "movable_block",
+  "primitive_kind": "entity_role",
+  "description": "A passive block (usually small coloured square) that can be moved by a piercer_device. The agent pierces the block with the piercer_tail and the block is then carried along subsequent device motions.",
+  "motion_class": "follower",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Small, often 4x4 coloured square in a bright distinctive palette (red, blue, green, etc.).",
+    "Multiple movable_blocks usually appear together with different palettes (one per colour).",
+    "Initially positioned in a line / column that the piercer_tail can reach by extending."
+  ],
+  "interaction_signature": {
+    "trigger": "piercer_tail extends through the block",
+    "effect": "block becomes carried by the device",
+    "observable_change": "block moves WITH the device on subsequent motions"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_ENTITY (to pierce) THEN MOVE_DEVICE (to relocate)",
+    "directive_template": "EXTEND_TAIL through movable_block THEN MOVE_VERTICAL to target row"
+  },
+  "anchored_in_samples": [
+    "sk48_1of7"
+  ]
+}

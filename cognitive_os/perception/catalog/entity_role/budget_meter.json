@@ -1,0 +1,30 @@
+{
+  "primitive_id": "budget_meter",
+  "primitive_kind": "entity_role",
+  "description": "A HUD readout — usually a horizontal bar or coloured strip — showing remaining action budget or score. Decreases as the agent takes actions and refills when life_refuel is collected. Not interactable.",
+  "motion_class": "static",
+  "appearance_class": "mutable",
+  "vlm_recognition_hints": [
+    "Horizontal strip near the edge of the frame (usually bottom), often a solid colour (yellow or other bright palette).",
+    "Length changes between frames in response to the agent's actions — that's the disambiguating cue from decorative strips.",
+    "Adjacent to other HUD elements (life_indicator dots, separator strips)."
+  ],
+  "interaction_signature": {
+    "trigger": "(passive — driven by other actions)",
+    "effect": "n/a (output only)",
+    "observable_change": "bar length grows or shrinks across frames"
+  },
+  "planner_consumption": {
+    "node_kind": "(none — informational only)",
+    "intent": "read remaining budget; trigger life_refuel pursuit when low"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ],
+  "confusable_with": [
+    {
+      "primitive_id": "divider",
+      "note": "budget_meter is the count-down resource bar (consumes during play); divider is a static visual separator with no game effect."
+    }
+  ]
+}

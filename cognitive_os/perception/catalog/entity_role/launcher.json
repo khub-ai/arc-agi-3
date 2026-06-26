@@ -1,0 +1,32 @@
+{
+  "primitive_id": "launcher",
+  "primitive_kind": "entity_role",
+  "description": "A small static sprite that acts as a directional pusher: when the agent is on the floor cell adjacent to it and performs an action, the agent SLIDES along the floor in the direction OPPOSITE the sprite's offset, continuing until blocked by a wall or another obstacle.  Behaves like a bounce-plate, spring, or ramp in real-world physics -- the agent isn't teleported to an arbitrary location, it travels a determined trajectory.",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Small, often single-colour bar or strip (1 cell long), usually in a palette dedicated to this role (rare across the frame).",
+    "Sits at the EDGE of the play area: one side is floor (the activation cell) and the opposite side is wall or off-frame.",
+    "Multiple instances on a level typically share the same palette and form a 'family' -- recognise them together.",
+    "Orientation hint: vertical bars sit beside the activation cell (left or right offset); horizontal bars sit above or below it."
+  ],
+  "interaction_signature": {
+    "behavior_class": "push_slide_until_blocked",
+    "trigger": "agent action while standing on the floor cell adjacent to the pusher",
+    "effect": "agent slides in the direction OPPOSITE the pusher's offset, continuing until a wall or other obstacle stops the slide",
+    "observable_change": "agent's cell shifts by more than one cell in a single action, along a straight line",
+    "direction_rule": "exit direction = vector from pusher cell to activation cell (continuing into the play area)"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_ENTITY (then PERFORM_ACTION)",
+    "directive_template": "MOVE_TO(activation_cell) THEN PERFORM_ACTION(any_cardinal)",
+    "compatible_match_conditions": [
+      "reach_cell_via_slide_chain"
+    ]
+  },
+  "anchored_in_samples": [
+    "ls20_4of7",
+    "ls20_3of7"
+  ],
+  "extension_notes": "Discovered structurally by ``discover_bounce_plates`` in perception/interaction.py: any small, static, rare-palette sprite that sits adjacent to a floor cell with wall on the opposite side.  Verified by observing the agent slide when the activation cell is triggered; the agent's resting cell matches a raycast from the activation cell in the exit direction.  The role assignment for a discovered bar is sourced by looking up the entity_role primitive in this catalog whose ``interaction_signature.behavior_class`` equals ``push_slide_until_blocked`` -- the catalog's primitive_id then becomes the role on the entity."
+}

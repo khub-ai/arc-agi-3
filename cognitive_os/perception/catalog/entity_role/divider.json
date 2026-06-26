@@ -1,0 +1,30 @@
+{
+  "primitive_id": "divider",
+  "primitive_kind": "entity_role",
+  "description": "A thin visual separator (usually a single-row or single-column line) that divides the play area from a reference area or HUD. Not interactable.",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Thin straight line spanning the full width or height of the frame.",
+    "Positioned between functionally-different regions (above = play, below = reference).",
+    "Single-pixel or small-pixel thick; uniform palette."
+  ],
+  "interaction_signature": {
+    "trigger": "(static — visualisation only)",
+    "effect": "n/a",
+    "observable_change": "stays unchanged"
+  },
+  "planner_consumption": {
+    "node_kind": "(none)",
+    "intent": "marks region boundary; everything below is reference, everything above is play"
+  },
+  "anchored_in_samples": [
+    "sk48_1of7"
+  ],
+  "confusable_with": [
+    {
+      "primitive_id": "budget_meter",
+      "note": "divider is purely visual (no state); budget_meter ticks down with each action."
+    }
+  ]
+}

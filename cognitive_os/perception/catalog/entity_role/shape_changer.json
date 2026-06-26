@@ -1,0 +1,25 @@
+{
+  "primitive_id": "shape_changer",
+  "primitive_kind": "entity_role",
+  "description": "A trigger entity the agent visits to cycle the working_glyph's shape / pattern by one step. Distinct from color_changer because the property mutated is geometric, not chromatic.",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Small marker, often a single-colour cluster or thin shape distinct from launchers and wall elements.",
+    "Positioned in a navigable corridor where the agent can reach it; cycling through visits is the player's action.",
+    "When working_glyph is present and a state-cycle puzzle is suspected, shape_changer is one of the candidate triggers."
+  ],
+  "interaction_signature": {
+    "trigger": "agent visits the shape_changer cell",
+    "effect": "the working_glyph's shape advances one step in its cycle",
+    "observable_change": "working_glyph's geometric pattern changes between frames"
+  },
+  "planner_consumption": {
+    "node_kind": "REACH_CELL (then VERIFY_MATCH on shape dim)",
+    "directive_template": "MOVE_TO(shape_changer.position); confirm working_glyph.shape advanced"
+  },
+  "anchored_in_samples": [
+    "ls20_4of7"
+  ],
+  "extension_notes": "Often paired with a color_changer for two-dim alignment puzzles. The pair-of-triggers structure is itself a recognisable pattern for the VLM."
+}

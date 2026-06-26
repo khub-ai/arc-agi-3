@@ -1,0 +1,25 @@
+{
+  "primitive_id": "rotator",
+  "primitive_kind": "entity_role",
+  "description": "A trigger entity that, when visited by the agent, causes one or more other entities to ROTATE / REFLECT in place. The affected entity's canonical shape (silhouette) stays the same; only its orientation or cell arrangement changes. Distinct from shape_changer (which mutates the silhouette to a different shape) and color_changer (which only swaps palette).",
+  "motion_class": "static",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Small trigger sprite the agent can step onto.",
+    "Often visually similar to other in-game triggers (small clusters in dedicated cells).",
+    "Cannot be recognised from a single frame alone -- the rotator role is established through interaction: the agent steps on the entity and another entity rotates / reflects in place."
+  ],
+  "anchored_in_samples": [
+    "ls20-9607627b 1/7 white cross"
+  ],
+  "confusable_with": [
+    {
+      "primitive_id": "piercer_tail",
+      "note": "rotator is a small static trigger; piercer_tail is a multi-segment trail of pieces that extends as the piercer head moves."
+    },
+    {
+      "primitive_id": "reference_arrangement",
+      "note": "rotator is a single small trigger; reference_arrangement is a pattern of multiple immovable pieces forming a shape to be matched."
+    }
+  ]
+}

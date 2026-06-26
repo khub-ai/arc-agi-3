@@ -1,0 +1,24 @@
+{
+  "primitive_id": "piercer_tail",
+  "primitive_kind": "entity_role",
+  "description": "The extendable tail of a piercer_device. The agent can grow it rightward (or in another direction) to PIERCE through movable_blocks and CARRY them along subsequent motions of the device.",
+  "motion_class": "follower",
+  "appearance_class": "stable",
+  "vlm_recognition_hints": [
+    "Thin horizontal (or directional) strip attached to a piercer_head.",
+    "Internal striped pattern (alternating palettes) suggests length / segmentation that can grow.",
+    "Length changes between frames in response to extend / retract actions — the disambiguating cue."
+  ],
+  "interaction_signature": {
+    "trigger": "extend_tail / retract_tail action",
+    "effect": "tail length increases or decreases by one segment",
+    "observable_change": "tail's rightmost edge (or directional extreme) extends or shrinks"
+  },
+  "planner_consumption": {
+    "node_kind": "EXTEND_TAIL (custom directive)",
+    "directive_template": "EXTEND_TAIL_TO(target_col) — grows tail to pierce a movable_block at that col"
+  },
+  "anchored_in_samples": [
+    "sk48_1of7"
+  ]
+}

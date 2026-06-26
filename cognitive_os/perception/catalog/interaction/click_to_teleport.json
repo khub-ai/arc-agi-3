@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "click_to_teleport",
+  "primitive_kind": "interaction",
+  "description":    "The agent's position (or a controlled entity's position) is set directly to wherever the player clicks. Bypasses incremental movement — one click = one teleport.",
+  "vlm_recognition_hints": [
+    "Single action produces large position deltas — the entity teleports to a non-adjacent cell.",
+    "Often the only movement mechanism in games without cardinal navigation.",
+    "The target is the cell that was clicked (in mouse-driven control schemes) or specified by the action argument."
+  ],
+  "anchored_in_samples": ["r11l_1of6"]
+}

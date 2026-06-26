@@ -1,0 +1,11 @@
+{
+  "primitive_id":   "cycle_property",
+  "primitive_kind": "state_change_effect",
+  "description":    "A property (colour, shape, orientation, etc.) of a specific entity advances by one step in a fixed cyclic sequence. Triggered by visiting a state-changer or cycling at a bracket.",
+  "vlm_recognition_hints": [
+    "The target entity's appearance changes between frames while its bbox stays the same.",
+    "The change is to ONE property (only colour, or only shape) — not multiple at once.",
+    "Repeated triggers cycle the property through the same fixed sequence."
+  ],
+  "anchored_in_samples": ["ls20_4of7", "tr87_1of7"]
+}
