@@ -208,7 +208,152 @@ PERC_SYS = (
     "\"game_purpose\":<one sentence: what the player must do to win>}")
 
 
+def _relation_facts(raw_path):
+    """AUTHORITATIVE measured geometric relations among foreground components --
+    identical-by-(shape AND size) and containment -- the reliable STRUCTURE the
+    VLM anchors its naming on (a small VLM eyeballs a 64x64 grid and merges /
+    miscounts pieces).  Pure geometry; the VLM still decides MEANING.  The
+    same-shape-modulo-scale relation is dropped from the prompt (too promiscuous
+    at tiny scale: every solid blob collapses to a filled square).  '' on any
+    issue.  See substrate_relations + the measurement-vs-meaning line."""
+    try:
+        import numpy as np
+        from PIL import Image
+        import silhouette_track as st
+        import substrate_relations as sr
+        rgb = np.array(Image.open(raw_path).convert("RGB"))
+        if rgb.shape[:2] != (64, 64):     # only the clean raw tick frame; never an
+            return ""                      # upscaled/annotated image (anti-alias specks)
+        comps = st.foreground_components(rgb)
+        co = [{"id": i, "bbox": list(c["bbox"]), "mask": np.asarray(c["mask"]),
+               "npix": int(np.asarray(c["mask"]).sum())} for i, c in enumerate(comps)]
+        rel = sr.find_relations(co)
+        if not rel:
+            return ""
+        rel = dict(rel)
+        rel["same_shape"] = []
+        def _ctr(bb):
+            return ((bb[0] + bb[2]) // 2, (bb[1] + bb[3]) // 2)
+        names = {c["id"]: f"shape@(row{_ctr(c['bbox'])[0]},col{_ctr(c['bbox'])[1]}),{c['npix']}px"
+                 for c in co}
+        return sr.render_text(rel, names)
+    except Exception:
+        return ""
+
+
+ROLE_SYS = (
+    "You are the PERCEPTION engine of a game-playing system. The substrate has ALREADY "
+    "MEASURED every distinct object in the frame -- exact positions, sizes, colours, and "
+    "which objects are identical or enclose one another. Your ONLY job is to look at the "
+    "grid-annotated frame and assign each LISTED object a ROLE and a 2-3 word appearance. "
+    "Do NOT add, remove, move, split, or merge objects -- the list is authoritative and "
+    "complete. Roles (pick one per object): mover (a piece the player controls/moves), "
+    "goal (a target/destination/slot a piece must reach or fill), marker (a small cue / "
+    "centre dot / cursor on a piece), wall (an impassable barrier), terrain (floor / "
+    "background structure), hud (a status bar / counter / border strip), other. Objects the "
+    "substrate marks IDENTICAL are the SAME KIND; a tiny object ENCLOSED by a piece is a "
+    "marker ON it. Reply ONE JSON object, first char `{`, no prose: "
+    "{\"objects\":[{\"id\":\"obj0\",\"role\":<role>,\"appearance\":<2-3 words>}], "
+    "\"game_type\":<short>, \"game_purpose\":<one sentence: what the player must do to win>}")
+
+_ROLE_BASE = {"mover": "mover", "goal": "goal", "marker": "marker", "wall": "wall",
+              "terrain": "terrain", "hud": "hud", "other": "object"}
+
+
 def handle_perception(reply_path, prompt, is_delta):
+    """Substrate-led perception: the substrate provides the COMPLETE measured object set
+    (extract_objects -- figure-ground + fragment grouping + texture suppression) and the
+    VLM only assigns a ROLE to each. A small VLM names kinds well but cannot localize on a
+    64px grid, so this plays to each side's strength and removes the omission/duplication
+    that the old VLM-led path fought with recovery machinery. Falls back to the VLM-led
+    path if the substrate set is unavailable."""
+    raw = _latest_raw()
+    img = reply_path.parent / "image_grid.png"
+    if not img.exists():
+        img = reply_path.parent / "curr_frame.png"
+    objects = []
+    try:
+        import numpy as _np
+        from PIL import Image as _Image
+        import substrate_objects as _so
+        import substrate_relations as _sr
+        if raw:
+            rgb = _np.array(_Image.open(raw).convert("RGB"))
+            if rgb.shape[:2] == (64, 64):
+                objects = _so.extract_objects(rgb)
+    except Exception as e:
+        print(f"[perception] substrate object-set unavailable ({e}); VLM-led fallback", flush=True)
+    if not objects:
+        return _handle_perception_vlm_led(reply_path, prompt, is_delta)
+
+    rel = _sr.find_relations(objects)
+    def _ctr(o):
+        return o["center"]
+    listing = "\n".join(
+        f"  {o['id']}: center(row{_ctr(o)[0]},col{_ctr(o)[1]}), {o['npix']}px, colour {o['color']}"
+        for o in objects)
+    rel_lines = []
+    for grp in rel.get("identical", []):
+        rel_lines.append(f"  IDENTICAL: {', '.join(grp)}")
+    for c in rel.get("contains", []):
+        rel_lines.append(f"  {c['outer']} ENCLOSES {c['inner']}"
+                         + (" (a tiny mark)" if c.get("inner_tiny") else ""))
+    user = ("The substrate measured these objects (authoritative -- assign a role to EACH):\n"
+            + listing + ("\n\nMeasured relations:\n" + "\n".join(rel_lines) if rel_lines else "")
+            + "\n\nLook at the grid-annotated frame and output the JSON role assignment now:")
+    ass = {}
+    gtype = gpurpose = ""
+    try:
+        rep = _json_obj(_qwen(ROLE_SYS, user, str(img) if img.exists() else None, tier="deep"))
+        for a in (rep.get("objects") or []) if rep else []:
+            if isinstance(a, dict) and a.get("id"):
+                ass[str(a["id"])] = a
+        gtype = (rep or {}).get("game_type", "") or ""
+        gpurpose = (rep or {}).get("game_purpose", "") or ""
+    except Exception:
+        pass
+
+    entities, used = [], {}
+    for o in objects:
+        a = ass.get(o["id"], {})
+        role = str(a.get("role") or "other").strip().lower()
+        base = _ROLE_BASE.get(role, "object")
+        used[base] = used.get(base, 0) + 1
+        # singletons of the salient roles keep a bare name; everything else is numbered
+        name = base if (used[base] == 1 and base in ("mover", "goal")) else f"{base}_{used[base]}"
+        r0, c0, r1, c1 = o["bbox"]
+        entities.append({
+            "name": name, "bbox_ticks_turn1": [r0, c0, r1, c1],
+            "center_ticks": [o["center"][0], o["center"][1]],
+            "role_hypothesis": str(a.get("appearance") or role),
+            "confidence": "medium", "color": o["color"]})
+
+    relationships = []
+    name_by_id = {o["id"]: e["name"] for o, e in zip(objects, entities)}
+    for grp in rel.get("identical", []):
+        nms = [name_by_id.get(i) for i in grp if name_by_id.get(i)]
+        if len(nms) >= 2:
+            relationships.append({"between": nms, "relation": "identical"})
+    for c in rel.get("contains", []):
+        a_, b_ = name_by_id.get(c["outer"]), name_by_id.get(c["inner"])
+        if a_ and b_:
+            relationships.append({"between": [a_, b_], "relation": "encloses"})
+
+    perc = {"entities": entities, "groups": [], "relationships": relationships,
+            "grid_inference": {"is_grid_based": False}, "symbolic_state": {},
+            "game_type": gtype or _last_perception["game_type"],
+            "game_purpose": gpurpose or _last_perception["game_purpose"],
+            "overall_notes": "perception: substrate-measured object set; VLM-assigned roles"}
+    _last_perception.update({"entities": entities, "game_type": perc["game_type"],
+                             "game_purpose": perc["game_purpose"]})
+    out = {"delta": {"agent_moved": True, "inferred_action": "CLICK",
+                     "entities_changed": [], "summary": "see perception"},
+           "perception": perc} if is_delta else perc
+    reply_path.write_text(json.dumps(out), encoding="utf-8")
+    return f"perception(substrate-led): {len(entities)} entities, type={perc['game_type'][:24]}"
+
+
+def _handle_perception_vlm_led(reply_path, prompt, is_delta):
     raw = _latest_raw()
     cands = _blobs(raw) if raw else []          # substrate MEASUREMENTS = unreliable candidates
     # grid-annotated frame: axis tick labels let the VLM read coordinates itself
@@ -218,11 +363,19 @@ def handle_perception(reply_path, prompt, is_delta):
     listing = "\n".join(
         f"  candidate {i}: colour {b['color']}, bbox(row0,col0,row1,col1) {b['bbox']}, "
         f"{b['cells']} px" for i, b in enumerate(cands)) or "  (none measured)"
-    user = ("Substrate candidate regions (UNRELIABLE hints -- correct them):\n" + listing +
+    rels = _relation_facts(raw) if raw else ""
+    rel_block = (("\n\nMEASURED GEOMETRIC RELATIONS (AUTHORITATIVE -- exact pixel facts: "
+                  "which shapes exist, which are IDENTICAL, which ENCLOSE others; trust "
+                  "these for STRUCTURE, then assign meaning/roles yourself):\n" + rels)
+                 if rels else "")
+    user = ("Substrate candidate regions (positions and sizes are MEASURED and reliable; "
+            "only their grouping into whole objects is not -- correct that):\n" + listing +
+            rel_block +
             "\n\nLook at the grid-annotated frame and return the REAL game objects you SEE "
             "(every piece/mover/goal/marker/wall; a piece on a coloured field is its OWN "
-            "object; merge fragments of one object; ADD any the substrate missed). Output "
-            "the JSON now:")
+            "object; merge fragments of one object; ADD any the substrate missed). Two "
+            "shapes the substrate marks IDENTICAL are the SAME KIND of object; if a shape "
+            "ENCLOSES a tiny mark, that mark is a cue ON that object. Output the JSON now:")
     # k=2: keep the RICHER identification (more real objects seen)
     obj = None
     for _ in range(2):
@@ -610,6 +763,22 @@ def serve(work_dir, model_slug, game_id, raw_dir=None, stop_evt=None, deep_model
     FAST_MODEL = model_slug
     DEEP_MODEL = deep_model or os.environ.get("COS_DEEP_VLM_MODEL") or model_slug
     OLLAMA_URL = None    # route via backends.call_oracle(slug) -> call_ollama (num_gpu=99)
+    # Record which model actually drives the run so the trace's Run-information
+    # header shows it.  The driver seeds run_info.json with game/level but defers
+    # the model to whoever calls it (this responder).  Merge, never clobber:
+    # read -> set acting/perception model -> write, so the driver's baseline keys
+    # survive regardless of write order.
+    try:
+        ri = WORK / "run_info.json"
+        info = {}
+        if ri.exists():
+            info = json.loads(ri.read_text(encoding="utf-8")) or {}
+        info["acting_model"] = MODEL
+        info["acting_provider"] = "offline (backends.call_oracle -> ollama)"
+        info["perception_model"] = DEEP_MODEL if DEEP_MODEL != MODEL else MODEL
+        ri.write_text(json.dumps(info, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"[run-info] responder could not record model: {e}")
     main(stop_evt=stop_evt)
 
 

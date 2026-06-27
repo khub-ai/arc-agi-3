@@ -5230,6 +5230,12 @@ class ExploratoryDriver:
                 "name": r.name,
                 "bbox_ticks_turn1": r.current_bbox,
                 "role_hypothesis": r.current_role or "unknown",
+                # carry the MARK that perception already extracted (appearance text +
+                # shape signature) so downstream pairing can match VISUALLY-RELATED
+                # objects (a marked block <-> its matched hole) -- it was being
+                # dropped here, which is why the swap paired by size, not the mark.
+                "appearance": getattr(r, "appearance", "") or "",
+                "shape_sig": getattr(r, "shape_sig", "") or "",
             }
             for r in self.world.entities.values()
             if r.current_bbox is not None
@@ -5240,6 +5246,12 @@ class ExploratoryDriver:
         # controllable's name; distinct objects (different locations) are untouched.
         entities_for_actor = self._dedup_aliased_entities(
             entities_for_actor, prefer_name=getattr(self, "_controllable_name", None))
+        # Expose salient 1-px MARKS as entities (the rare-colour handles bulk
+        # perception drops -- the agent/target centres) so controllable-id + click
+        # can track + act on them.  Added only if not already perceived at that name.
+        for _mk in self._mark_entities():
+            if not any(e.get("name") == _mk["name"] for e in entities_for_actor):
+                entities_for_actor.append(_mk)
         # LEARN the click->displacement law from the last click-push's effect on
         # the cargo (observed, before this turn's action is chosen).
         self._observe_click_law(entities_for_actor)
@@ -8582,6 +8594,7 @@ class ExploratoryDriver:
                 except Exception:
                     pass
         self._committed_objective = None     # the target is part of the dropped chain
+        self._swap_phase = "cargo"           # a fresh delivery restarts the swap cycle
         self._active_context = None
         self._prog_mark = None          # fresh progress window for the next context
         self._no_progress_turns = 0
@@ -8627,6 +8640,40 @@ class ExploratoryDriver:
                                  else "click behind the block (push)"), flush=True)
         except Exception:
             pass
+
+    def _mark_entities(self):
+        """Salient 1-pixel MARKS as first-class entities, so the controllable-id,
+        pairing and click pipeline can SEE + act on the rare-colour handles that
+        bulk perception drops (ka59: the white AGENT centre + black TARGET centre).
+        Named by colour -- a mark colour is near-unique, so the name is STABLE as
+        the mark moves and it gets TRACKED.  Guarded; [] without a frame/numpy."""
+        try:
+            import numpy as np
+            import salient_marks as _sm
+            # Use the RAW palette grid from the adapter's last observation -- clean
+            # 64x64, NOT the upscaled/annotated PNG (whose anti-aliasing fabricates
+            # singleton specks) and NOT RGB (which collapses the white centre into
+            # all the other whites).
+            adapter = self.game
+            obs = getattr(adapter, "_obs", None)
+            norm = getattr(adapter, "_normalise_frame", None)
+            if obs is None or getattr(obs, "frame", None) is None or norm is None:
+                return []
+            grid = np.asarray(norm(obs.frame)).astype(int)
+            by_col: dict = {}
+            for r, c, v in _sm.find_marks(grid):
+                by_col.setdefault(v, []).append((r, c))
+            out = []
+            for v, pts in by_col.items():
+                r = int(round(sum(p[0] for p in pts) / len(pts)))
+                c = int(round(sum(p[1] for p in pts) / len(pts)))
+                out.append({"name": f"mark_{v}",
+                            "bbox_ticks_turn1": [r, c, r + 1, c + 1],
+                            "role_hypothesis": "mark",
+                            "appearance": f"salient mark colour {v}"})
+            return out
+        except Exception:
+            return []
 
     def _should_yield_to_exploration(self, choice) -> bool:
         """Break the 'exploit preempts explore' lock.
@@ -8674,6 +8721,7 @@ class ExploratoryDriver:
         macro-delivery fires only on evidence; the convergence watchdog refutes it if
         the push does not progress.  Fully guarded."""
         try:
+            import re
             from cell_actor import bfs, _direction
             from types import SimpleNamespace
             import means_ends as _me
@@ -8764,31 +8812,67 @@ class ExploratoryDriver:
             # slot with no congruent cargo falls back to a direct mover delivery.
             def _dims(bb):
                 return (bb[2] - bb[0], bb[3] - bb[1])
+
+            # MARK of an entity (the marker perception ALREADY extracted, carried in
+            # appearance/role text): the distinguishing tokens that are NOT the
+            # entity's own bulk shape/colour -- a coloured centre/border/dot/cross.
+            # Two VISUALLY-RELATED objects share such a marker (a swap pair signals
+            # itself with contrasting markers); pairing by the marker -- not size --
+            # is how the swap finds the right pair.  Colour synonyms normalised so
+            # 'black' and 'dark' (the block's dot and the hole's fill) match.
+            # a MARK is a VISUAL descriptor (a colour or a mark-shape cue), NEVER a
+            # role/semantic word (player/block/slot) -- those are not what signals a
+            # swap pair.  Colour synonyms normalised so the block's 'black' dot and
+            # the hole's 'dark' fill match.
+            _SYN = {"black": "dark", "grey": "gray", "centre": "center"}
+            _MARK_VOCAB = {"dark", "white", "red", "blue", "green", "yellow",
+                           "purple", "pink", "orange", "gray", "cyan", "magenta",
+                           "brown", "gold", "teal",
+                           "dot", "center", "border", "cross", "ring", "outline",
+                           "stripe", "patch", "spot", "star", "arrow", "diamond"}
+
+            def _mark_tokens(e):
+                txt = ((e.get("appearance") or "") + " "
+                       + (e.get("role_hypothesis") or "")).lower()
+                toks = {_SYN.get(t, t) for t in re.findall(r"[a-z]+", txt)}
+                return toks & _MARK_VOCAB
+
             cargo_cands = []
             for e in (entities_for_actor or []):
                 nm = e.get("name")
                 bb = e.get("bbox_ticks_turn1") or e.get("bbox")
-                if nm == cn or not (bb and len(bb) >= 4):
+                if not (bb and len(bb) >= 4):
                     continue
                 if any(w in _tags(e) for w in TARGETY):      # a slot is not its own cargo
                     continue
+                # the controllable is normally not its own cargo -- EXCEPT in the swap
+                # idiom, where a MARKED controllable is itself a swap participant.
+                if nm == cn and not _mark_tokens(e):
+                    continue
                 cargo_cands.append(e)
 
-            def _match_cargo(gbx, used):
+            def _match_cargo(goal_e, used):
+                gbx = goal_e.get("bbox_ticks_turn1") or goal_e.get("bbox")
                 gh, gw = _dims(gbx)
                 gcen = (round((gbx[0] + gbx[2]) / 2), round((gbx[1] + gbx[3]) / 2))
-                best, bestd = None, None
+                gmarks = _mark_tokens(goal_e)
+                best, bestkey = None, None
                 for e in cargo_cands:
                     if id(e) in used:
                         continue
                     cb = e.get("bbox_ticks_turn1") or e.get("bbox")
                     ch, cw = _dims(cb)
-                    if abs(ch - gh) > 1 or abs(cw - gw) > 1:  # congruent footprint
-                        continue
                     ccen = (round((cb[0] + cb[2]) / 2), round((cb[1] + cb[3]) / 2))
                     d = abs(ccen[0] - gcen[0]) + abs(ccen[1] - gcen[1])
-                    if bestd is None or d < bestd:
-                        best, bestd = e, d
+                    shares_mark = bool(gmarks & _mark_tokens(e))
+                    congruent = (abs(ch - gh) <= 1 and abs(cw - gw) <= 1)
+                    if not (shares_mark or congruent):
+                        continue                 # unrelated by BOTH marker and size
+                    # PRIMARY: a shared marker (the swap pair); then congruent
+                    # footprint; nearest breaks ties.  (-> larger key wins)
+                    key = (1 if shares_mark else 0, 1 if congruent else 0, -d)
+                    if bestkey is None or key > bestkey:
+                        best, bestkey = e, key
                 return best
 
             used_cargo = set()
@@ -8798,7 +8882,7 @@ class ExploratoryDriver:
                 delivery = {"mover": cur,
                             "goal": {"bbox_ticks_turn1": [int(x) for x in gbx],
                                      "name": g.get("name")}}
-                cargo = _match_cargo(gbx, used_cargo)
+                cargo = _match_cargo(g, used_cargo)
                 if cargo is not None:
                     used_cargo.add(id(cargo))
                     cbx = cargo.get("bbox_ticks_turn1") or cargo.get("bbox")
@@ -8866,7 +8950,51 @@ class ExploratoryDriver:
                     cc = ((cb[0] + cb[2]) / 2.0, (cb[1] + cb[3]) / 2.0)
                     gcn = ((gbx[0] + gbx[2]) / 2.0, (gbx[1] + gbx[3]) / 2.0)
                     if abs(cc[0] - gcn[0]) + abs(cc[1] - gcn[1]) <= 2:
+                        self._swap_phase = "cargo"     # seated -> next cargo fresh
                         continue                       # this cargo already seated
+                    # IDIOM-FIRST: the common cross-game click mechanic is the SWAP --
+                    # clicking two VISUALLY-RELATED objects in sequence exchanges their
+                    # positions (the marked block swaps into its matched hole).  Try
+                    # swap first; fall to the learned single-click laws only if it is
+                    # refuted.  See prior_click_swaps_related_objects.
+                    _law0 = getattr(self, "_click_law_direction", None)
+                    _use_swap = (_law0 is None and not getattr(self, "_swap_refuted", False))
+                    if _use_swap or _law0 == "swap":
+                        phase = getattr(self, "_swap_phase", "cargo")
+                        if phase == "cargo":
+                            # cycle start: judge the PREVIOUS cycle (swap lands after
+                            # the slot click); never-closing -> refute swap.
+                            if not self._spatial_progress_ok(cc, gcn):
+                                self._swap_refuted = True
+                                self._spatial_pursuit_stalled(gcn, "click-swap")
+                                return None
+                            # LOCK the (cargo, slot) PAIR for the whole 2-click cycle
+                            # so phase 2 swaps the SAME pair even if perception/commit
+                            # jitters between turns (the cycle must be atomic, or it
+                            # clicks cargo A then slot B and never swaps a real pair).
+                            self._swap_target = {
+                                "cargo_name": cargo.get("name"),
+                                "slot_name": dv["goal"].get("name"),
+                                "gcn": (gcn[0], gcn[1])}
+                            oc = (cc[0], cc[1]); self._swap_phase = "slot"
+                            tgt = "the cargo (select)"
+                            _cn2, _sn = cargo.get("name"), dv["goal"].get("name")
+                        else:
+                            st = getattr(self, "_swap_target", None) or {}
+                            g = st.get("gcn") or (gcn[0], gcn[1])
+                            oc = (g[0], g[1]); self._swap_phase = "cargo"
+                            tgt = "its matched slot (swap-in)"
+                            _cn2 = st.get("cargo_name", cargo.get("name"))
+                            _sn = st.get("slot_name", dv["goal"].get("name"))
+                        r = int(round(max(0, min(self.n_ticks - 1, oc[0]))))
+                        c = int(round(max(0, min(self.n_ticks - 1, oc[1]))))
+                        act = f"CLICK:{c},{r}"
+                        return SimpleNamespace(
+                            action=act, plan_kind="mea_click_swap",
+                            rationale=(f"click-swap: click {tgt} ({r},{c}) to swap "
+                                       f"cargo '{_cn2}' into slot '{_sn}'"),
+                            goal_id=f"swap:{_cn2}",
+                            target_cell=(r, c), full_plan_actions=[act], is_probe=True)
                     if not self._spatial_progress_ok(cc, gcn):
                         self._spatial_pursuit_stalled(gcn, "click-push")
                         return None

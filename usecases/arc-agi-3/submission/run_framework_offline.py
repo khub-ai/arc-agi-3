@@ -18,7 +18,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 SUB = REPO / "usecases" / "arc-agi-3" / "submission"
-FRAMEWORK = SUB / "ARC-AGI-3-Agents"
+# The bundled framework sits under submission/ in the source repo but at the slice
+# root on Kaggle (and the competition also mounts a copy). Use the first that exists.
+FRAMEWORK = next(
+    (p for p in (SUB / "ARC-AGI-3-Agents", REPO / "ARC-AGI-3-Agents",
+                 Path("/kaggle/input/competitions/arc-prize-2026-arc-agi-3/ARC-AGI-3-Agents"))
+     if p.exists()), SUB / "ARC-AGI-3-Agents")
 
 os.environ["COS_STRICT"] = "1"
 os.environ["ARC_AGI_3_REPO"] = str(REPO)
@@ -58,8 +63,11 @@ def main():
               "no per-game prior (competition-faithful)", flush=True)
 
     from arc_agi import Arcade, OperationMode
+    # Local default is <repo>/environment_files; on Kaggle point COS_ENVIRONMENTS_DIR
+    # at /kaggle/input/competitions/arc-prize-2026-arc-agi-3/environment_files.
+    envs_dir = os.environ.get("COS_ENVIRONMENTS_DIR") or str(REPO / "environment_files")
     env = Arcade(operation_mode=OperationMode.OFFLINE,
-                 environments_dir=str(REPO / "environment_files")).make(game)
+                 environments_dir=envs_dir).make(game)
     asp = list(getattr(env, "action_space", []) or [])
     base = list(getattr(getattr(env, "info", None), "baseline_actions", []) or [])
     print(f"[fw] game={game}  action_space={asp}  baseline={base}", flush=True)

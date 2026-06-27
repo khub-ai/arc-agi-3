@@ -32,6 +32,12 @@ def _find_cos_root() -> str:
     for c in cands:
         if c and (Path(c) / "cognitive_os").is_dir():
             return c
+    # Forgiving fallback: find cognitive_os/ at ANY depth under /kaggle/input,
+    # so the dataset's upload nesting (cos-code/ vs cos-code/cos-code/ ...) can't break it.
+    if inp.is_dir():
+        for cg in inp.glob("**/cognitive_os"):
+            if cg.is_dir():
+                return str(cg.parent)
     raise RuntimeError(
         "COS slice not found. Attach the 'cos-code' dataset on Kaggle, or set "
         "COS_CODE_DIR to a directory containing cognitive_os/."

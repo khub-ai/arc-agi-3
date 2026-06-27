@@ -64,6 +64,19 @@
       "operator": "a mark is a RELATIONAL signal, NOT noise to summarize away into a dominant colour. (1) SHARED across entities of DIFFERENT kinds (a solid + a hollow slot, a token + a receptacle) => CORRESPONDENCE: a matched pair -- the marked filler/mover belongs in / fills / acts on the marked target; seed a delivery/pairing hypothesis (THIS cargo -> THOSE slots), which answers 'which cargo goes to which target'. (2) VARYING between entities of the SAME kind/shape => different ROLES; the odd-one-out is often the actor/controllable; seed distinct-role hypotheses. Carry the mark as a FIRST-CLASS crop attribute (entity identity = its full crop, never its dominant colour); GROUP entities by shared marks ACROSS shapes, SPLIT them by varying marks WITHIN a shape; confirm role + pairing by interaction.",
       "credence": 0.4,
       "provenance": "generalized_strategy (ka59: a black centre groups the block with the black-bordered holes = the delivery pair; the white-centre green is the odd-one-out = the actor). Supersedes prior_distinguishing_mark_encodes_role -- adds the CORRESPONDENCE direction + crop-based identity (a mark is relational, not just a same-shape role tag)."
+    },
+    {
+      "id": "prior_click_swaps_related_objects",
+      "kind": "mechanic_prior",
+      "reasoning_mode": "forward",
+      "trigger": "two VISUALLY-RELATED objects are present (a matching mark / colour / shape, or a filler and its congruent EMPTY slot) and a CLICK action is available, AND a single click does not move pieces",
+      "operator": "a common cross-game IDIOM: clicking two related objects in SEQUENCE SWAPS their positions (they exchange places). To deliver a marked filler into its matched slot -- or move a piece onto a related target -- CLICK the filler, then CLICK the target; they swap, seating the filler. Try this two-click swap when single clicks (toward/away) do not move pieces. Confirm by the filler arriving at the target.",
+      "spawns_subgoals": [
+        "click the filler/cargo",
+        "click its matched slot/target to swap them in"
+      ],
+      "credence": 0.4,
+      "provenance": "generalized cross-game idiom (ka59 + others: two related objects click-swap; the marked block swaps into its marked hole)"
     }
   ]
 }

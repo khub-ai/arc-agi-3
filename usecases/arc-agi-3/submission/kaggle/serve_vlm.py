@@ -29,8 +29,14 @@ from flask import Flask, jsonify, request
 
 
 def _load(model_dir: str):
-    """Load the VLM, trying the modern generic class first, then fallbacks."""
+    """Load the VLM, trying the modern generic class first, then fallbacks.
+
+    Uses bf16 where the GPU supports it (Blackwell/Ampere+, e.g. RTX PRO 6000) --
+    the dtype these models are trained in -- and falls back to fp16 on Turing (T4)."""
     import transformers
+    dtype = (torch.bfloat16 if torch.cuda.is_available()
+             and torch.cuda.is_bf16_supported() else torch.float16)
+    print(f"[serve_vlm] dtype={dtype}", flush=True)
     last = None
     for cls_name in ("AutoModelForImageTextToText", "AutoModelForVision2Seq",
                      "AutoModelForCausalLM"):
@@ -38,7 +44,7 @@ def _load(model_dir: str):
         if cls is None:
             continue
         try:
-            m = cls.from_pretrained(model_dir, dtype=torch.float16,
+            m = cls.from_pretrained(model_dir, dtype=dtype,
                                     device_map="auto", trust_remote_code=True)
             print(f"[serve_vlm] loaded via {cls_name}", flush=True)
             return m
