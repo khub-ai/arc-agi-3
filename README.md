@@ -40,7 +40,7 @@ ARC-AGI-3 harness ──(per-turn choose_action)──▶ CosAgent
                   ExploratoryDriver  (perception · world model · means-ends · exploration · strategy)
                                                   │   file-handoff prompts
                                                   ▼
-                  cos_responder ──▶ local model (gemma-4-31b via vLLM) — offline
+                  cos_responder ──▶ local model (Qwen3-VL-8B via transformers) — offline
 ```
 
 Everything runs **offline**: the model is served locally (no internet), and the
@@ -71,14 +71,17 @@ The agent is `MyAgent(CosAgent)` in `kaggle/agent/my_agent.py`;
 competition re‑run that notebook:
 
 1. installs the SDK from the competition's offline wheels;
-2. serves a quantized `gemma-4-31b` locally with vLLM;
+2. serves `Qwen3-VL-8B-Instruct` locally in fp16 via a small `transformers`
+   OpenAI‑compatible shim (`serve_vlm.py`) — vLLM isn't on the Kaggle image, and
+   the 8B model fits the 2× T4 without quantization;
 3. seeds a fresh, general‑only KB and puts the COS slice on `sys.path`;
 4. runs the framework's `main.py --agent myagent` against the competition's
    `gateway:8001` sidecar, which serves the hidden games and records the play
    into `submission.parquet`.
 
-The model is selected by a slug, so it is swappable — `vllm/<host>/<model>` for a
-local vLLM endpoint, or `ollama/<host>/<tag>` for Ollama. See
+The model is selected by a slug, so it is swappable — `vllm/<host>/<model>` routes
+to the local OpenAI endpoint (`serve_vlm.py` or a real vLLM), or `ollama/<host>/<tag>`
+for Ollama. See
 [`KAGGLE_SUBMISSION.md`](usecases/arc-agi-3/submission/KAGGLE_SUBMISSION.md) for
 the full mechanism.
 

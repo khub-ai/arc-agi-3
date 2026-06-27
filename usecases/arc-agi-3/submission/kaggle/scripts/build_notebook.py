@@ -6,7 +6,7 @@ produced by the competition gateway), with two COS-specific additions:
   * the install cell also brings in any extra COS deps from an optional
     `cos-deps` wheelhouse dataset (e.g. vLLM, if the Kaggle image lacks it);
   * a vLLM-serve cell (competition-rerun only) starts a local OpenAI-compatible
-    server for the attached gemma-4-31b model BEFORE the agent runs, so COS's
+    server for the attached Qwen3-VL-8B model BEFORE the agent runs, so COS's
     `vllm/127.0.0.1:8000/...` slug resolves.
 
 The agent itself (`agent/my_agent.py` -> `MyAgent(CosAgent)`) self-bootstraps the
@@ -21,10 +21,9 @@ from pathlib import Path
 from textwrap import dedent
 
 # ─────────────────────────────────────────────────────────────────────────────
-# KAGGLE ACCELERATOR.  gemma-4-31b does NOT fit any Kaggle GPU in bf16 (~62 GB);
-# attach a QUANTIZED (w4a16/AWQ/GPTQ) gemma-4-31b. The vLLM cell auto-detects the
-# quant method + GPU count (tensor-parallel). "t4" = T4 x2 (32 GB total, TP=2) is
-# the most headroom; "rtx6000" = 24 GB single (simpler, burns quota faster).
+# KAGGLE ACCELERATOR.  Qwen3-VL-8B in fp16 (~17 GB) fits across "t4" = T4 x2
+# (32 GB total) with NO quantization. The serve cell loads it with transformers
+# (device_map=auto). "rtx6000" = 24 GB single is faster but burns quota faster.
 # ─────────────────────────────────────────────────────────────────────────────
 ACCELERATOR = "t4"
 
@@ -37,6 +36,7 @@ _ACCELERATORS = {
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENT_SRC = ROOT / "agent" / "my_agent.py"
+SERVE_SRC = ROOT / "serve_vlm.py"
 NOTEBOOK_PATH = ROOT / "notebooks" / "submission.ipynb"
 METADATA_PATH = ROOT / "notebooks" / "kernel-metadata.json"
 
@@ -54,65 +54,59 @@ def build() -> dict:
     if not AGENT_SRC.exists():
         raise SystemExit(f"Could not find {AGENT_SRC}")
     agent_body = AGENT_SRC.read_text()
+    serve_body = SERVE_SRC.read_text()
 
     install_cell = code_cell(dedent(
         """\
         # ARC SDK from the offline competition wheels (provided in the comp data).
+        # This also brings in flask (used by the local VLM server). torch /
+        # transformers / accelerate / pillow are already on the Kaggle GPU image.
         !pip install --no-index --find-links \\
             /kaggle/input/competitions/arc-prize-2026-arc-agi-3/arc_agi_3_wheels \\
             arc-agi python-dotenv
-        # Optional: extra COS runtime deps not in the Kaggle image (e.g. vLLM),
-        # shipped as a `cos-deps` wheelhouse dataset. No-op if you don't attach one.
+        # Optional: any extra deps NOT already on the image, shipped as a
+        # `cos-deps` wheelhouse dataset with a requirements.txt. No-op normally.
         import glob, os
         for _d in glob.glob('/kaggle/input/cos-deps*'):
             req = os.path.join(_d, 'requirements.txt')
-            cmd = f'pip install --no-index --find-links {_d} ' + (f'-r {req}' if os.path.exists(req) else 'vllm')
-            print('cos-deps:', cmd); os.system(cmd)
+            if os.path.exists(req):
+                print('cos-deps:', _d)
+                os.system(f'pip install --no-index --find-links {_d} -r {req}')
         """
     ))
 
-    serve_vllm_cell = code_cell(dedent(
+    write_serve_cell = code_cell("%%writefile /tmp/serve_vlm.py\n" + serve_body)
+
+    serve_cell = code_cell(dedent(
         """\
-        # Serve the attached gemma-4-31b (quantized) on a local OpenAI-compatible
-        # endpoint, BEFORE the agent runs. Competition-rerun only (skipped on commit).
-        import os, glob, json, subprocess, time, urllib.request
+        # Serve the attached VLM (Qwen3-VL-8B) on a local OpenAI-compatible endpoint
+        # via transformers (fp16, device_map=auto across the GPUs) -- vLLM is not on
+        # the Kaggle image. Competition-rerun only (skipped on commit).
+        import os, glob, subprocess, time, urllib.request
         if os.getenv('KAGGLE_IS_COMPETITION_RERUN'):
-            import torch
-            ngpu = torch.cuda.device_count()
             model_dir = None
             for cfg in glob.glob('/kaggle/input/**/config.json', recursive=True):
                 d = os.path.dirname(cfg)
                 try:
-                    if 'gemma' in d.lower() and any(f.endswith('.safetensors') for f in os.listdir(d)):
+                    if any(f.endswith('.safetensors') for f in os.listdir(d)):
                         model_dir = d; break
                 except Exception:
                     pass
-            assert model_dir, 'attach a (quantized) gemma-4-31b Kaggle Model'
-            quant = None
-            try:
-                quant = (json.load(open(os.path.join(model_dir, 'config.json')))
-                         .get('quantization_config', {}).get('quant_method') or '').lower() or None
-            except Exception:
-                pass
-            cmd = ['python', '-m', 'vllm.entrypoints.openai.api_server',
-                   '--model', model_dir, '--served-model-name', 'gemma-4-31b-it',
-                   '--host', '127.0.0.1', '--port', '8000',
-                   '--tensor-parallel-size', str(max(1, ngpu)),
-                   '--gpu-memory-utilization', '0.92', '--max-model-len', '8192',
-                   '--trust-remote-code']
-            if quant:
-                cmd += ['--quantization', quant]
-            print('serving', model_dir, '| gpus', ngpu, '| quant', quant, flush=True)
-            logf = open('/kaggle/working/vllm.log', 'w')
-            subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT)
+            assert model_dir, 'attach the Qwen3-VL-8B-Instruct Kaggle Model'
+            print('serving model:', model_dir, flush=True)
+            logf = open('/kaggle/working/serve_vlm.log', 'w')
+            subprocess.Popen(['python', '/tmp/serve_vlm.py', '--model', model_dir,
+                              '--port', '8000', '--name', 'qwen3-vl-8b'],
+                             stdout=logf, stderr=subprocess.STDOUT)
             up = False
-            for _ in range(240):          # up to ~20 min; 31B load is slow
+            for _ in range(180):          # up to ~15 min for the model to load
                 try:
                     urllib.request.urlopen('http://127.0.0.1:8000/v1/models', timeout=5)
                     up = True; break
                 except Exception:
                     time.sleep(5)
-            print('vLLM up' if up else 'vLLM FAILED -- see /kaggle/working/vllm.log', flush=True)
+            print('VLM server up' if up
+                  else 'VLM FAILED -- see /kaggle/working/serve_vlm.log', flush=True)
         """
     ))
 
@@ -208,7 +202,8 @@ def build() -> dict:
                 "Do not edit cells directly — edit the source file and re-run "
                 "`make submit`."),
             install_cell,
-            serve_vllm_cell,
+            write_serve_cell,
+            serve_cell,
             write_agent_cell,
             run_cell,
             dummy_submission_cell,

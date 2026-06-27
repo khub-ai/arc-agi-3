@@ -13,7 +13,7 @@ game-agnostic agent that approaches each game the way a general problem-solver
 would: it *perceives* the frame into structural facts, *builds a world model* of
 the game's rules from what its actions actually do, and *acts* by means-ends
 planning toward the win condition, exploring to reduce uncertainty when no path
-is known. A local, frozen, open-weights **gemma-4-31b** serves as the strategy
+is known. A local, frozen, open-weights **Qwen3-VL-8B-Instruct** serves as the strategy
 vision-language model. No game-specific code and no per-game memory are used.
 
 **Result:** `[SCORE]`% on the ARC-AGI-3 evaluation (`[N]` of `[M]` games advanced;
@@ -46,7 +46,7 @@ Two principles are load-bearing:
 Internally, the competition's `Agent` (`MyAgent`) is a thin shim over COS: a
 control-inversion bridge lets COS own its play loop while satisfying the
 per-turn `choose_action` contract —
-`MyAgent → CosAgent → ExploratoryDriver → cos_responder → local vLLM`.
+`MyAgent → CosAgent → ExploratoryDriver → cos_responder → local VLM server`.
 
 ## How it runs on Kaggle (and is scored)
 
@@ -64,18 +64,17 @@ retries are free, which suits COS's deliberate per-turn reasoning.
 
 ## Model and compute environment
 
-- **Model:** a **frozen, open-weights gemma-4-31b**, **quantized** (w4a16 / AWQ)
-  so it fits a Kaggle GPU, served locally on an OpenAI-compatible **vLLM**
-  endpoint (tensor-parallel across the available GPUs). It is swappable via a
-  model slug.
+- **Model:** **Qwen3-VL-8B-Instruct** (frozen, open-weights, Apache-2.0), served
+  locally in **fp16** (`device_map="auto"` across the GPUs) behind a small
+  `transformers` OpenAI-compatible shim. vLLM is not on the Kaggle image, and the
+  8B model fits the 2× T4 (~17 GB) **without quantization**. Swappable via a slug.
 - **No training or fine-tuning is performed.** The "training code" deliverable is
   therefore N/A; the deliverable is the inference/agent code in this repository.
   All adaptation is *within-run* learning, not weight updates.
-- **Hardware / limits:** Kaggle GPU accelerator (T4 ×2 or RTX 6000), 12-hour
-  runtime, internet off.
-- **Dependencies:** the ARC SDK (`arc-agi` / `arcengine`) installs from the
-  competition's offline wheels; vLLM serves the attached gemma Model; the agent
-  code is the attached `cos-code` dataset.
+- **Hardware / limits:** Kaggle GPU accelerator (T4 ×2), 12-hour runtime, internet off.
+- **Dependencies:** the ARC SDK (`arc-agi` / `arcengine`) and `flask` install from
+  the competition's offline wheels; `torch` / `transformers` / `accelerate` are
+  already on the Kaggle image; the agent code is the attached `cos-code` dataset.
 
 ## Reproduction
 
@@ -87,12 +86,13 @@ the build/submit scaffold is in
 1. Build the agent slice: `python usecases/arc-agi-3/submission/build_package.py`
    → `dist/cos-code` (passes a compliance + leak gate), and upload it as the
    private Kaggle Dataset `cos-code`.
-2. Attach a **quantized gemma-4-31b** Kaggle Model.
+2. Attach the **Qwen3-VL-8B-Instruct** Kaggle Model (`qwen-lm/qwen-3-vl`,
+   `transformers/8b-instruct`).
 3. In `kaggle/notebooks/kernel-metadata.json` set your username and the model
    slug; put your Kaggle token at `kaggle/.kaggle/access_token`.
 4. `cd kaggle && make submit` — generates `submission.ipynb` (install SDK from
-   the competition wheels → serve gemma via vLLM → run COS against the gateway)
-   and pushes it.
+   the competition wheels → serve Qwen3-VL via the transformers shim → run COS
+   against the gateway) and pushes it.
 5. On Kaggle, select `submission.parquet` from the kernel output → **Submit to
    Competition** (5/day, 12-hour runtime).
 

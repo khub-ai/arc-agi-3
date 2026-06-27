@@ -5240,6 +5240,9 @@ class ExploratoryDriver:
         # controllable's name; distinct objects (different locations) are untouched.
         entities_for_actor = self._dedup_aliased_entities(
             entities_for_actor, prefer_name=getattr(self, "_controllable_name", None))
+        # LEARN the click->displacement law from the last click-push's effect on
+        # the cargo (observed, before this turn's action is chosen).
+        self._observe_click_law(entities_for_actor)
         # NOTE: a null agent_cell (non-grid / continuous-arena game) no longer
         # halts the run.  The grid planner + cell_actor below only run when a
         # grid agent_cell exists; otherwise the autonomous curiosity probe
@@ -5251,11 +5254,14 @@ class ExploratoryDriver:
 
         # TRACK THE CONTROLLABLE: the world flags controllable_found but does not
         # record WHICH entity it is for a non-grid scene -- so the cardinal pursuit
-        # has no mover to steer.  Identify it purely by MOTION: the entity that
-        # moves most CONSISTENTLY in response to actions (a count over turns, so a
-        # pushed block that slides once never outvotes the player that steps every
-        # turn).  Fully game-agnostic (no entity-name / game assumptions, no tuned
-        # threshold -- the only test is 'did it move at all'); guarded.
+        # has no mover to steer.  Identify it purely by MOTION: among entities that
+        # have shown 2-D NAVIGABILITY (moved in >=2 distinct directions -- a
+        # steerable agent, not a single-axis meter), the one that moves most
+        # CONSISTENTLY in response to actions (a count over turns, so a pushed block
+        # that slides once never outvotes the player that steps every turn); falls
+        # back to raw move-count before any candidate has shown 2 directions.  Fully
+        # game-agnostic (no entity-name / game assumptions, no tuned threshold --
+        # the tests are 'did it move' + 'in how many directions'); guarded.
         try:
             _cur_ctr = {e["name"]: ((e["bbox_ticks_turn1"][0] + e["bbox_ticks_turn1"][2]) / 2.0,
                                     (e["bbox_ticks_turn1"][1] + e["bbox_ticks_turn1"][3]) / 2.0)
@@ -5265,16 +5271,44 @@ class ExploratoryDriver:
             _prev_ctr = getattr(self, "_prev_entity_centers", None) or {}
             _acts = getattr(self.world, "actions_taken", []) or []
             _last = str(getattr(_acts[-1], "action", "")) if _acts else ""
+            _is_click = _last.startswith("CLICK") or _last == "ACTION6"
             if _prev_ctr and _last and _last not in ("NONE", "RESET"):
                 self._move_counts = getattr(self, "_move_counts", {})
+                self._move_dirs = getattr(self, "_move_dirs", {})
+                self._nav_axes = getattr(self, "_nav_axes", {})
                 for n in _cur_ctr:
                     if n in _prev_ctr:
-                        if (abs(_cur_ctr[n][0] - _prev_ctr[n][0])
-                                + abs(_cur_ctr[n][1] - _prev_ctr[n][1])) > 0:
+                        dr = _cur_ctr[n][0] - _prev_ctr[n][0]
+                        dc = _cur_ctr[n][1] - _prev_ctr[n][1]
+                        if abs(dr) + abs(dc) > 0:
                             self._move_counts[n] = self._move_counts.get(n, 0) + 1
+                            # Record the DOMINANT-axis direction of this move,
+                            # measured from the CENTROID delta (not the action, so
+                            # it is robust to an unknown action->direction map).  A
+                            # navigable scene agent moves in >=2 distinct directions;
+                            # a HUD meter / score bar / slider that an action happens
+                            # to advance only ever slides along ONE axis -- which is
+                            # exactly the ka59 mis-identification (a 1-cell meter at
+                            # column 63 that ACTION1 nudges UP every turn).
+                            if abs(dr) >= abs(dc):
+                                d = "DOWN" if dr > 0 else "UP"
+                            else:
+                                d = "RIGHT" if dc > 0 else "LEFT"
+                            self._move_dirs.setdefault(n, set()).add(d)
+                            # NAVIGABILITY (genuine 2-D cardinal control): record the
+                            # AXIS moved, but ONLY for a NON-CLICK action.  A truly
+                            # steerable agent moves on BOTH a vertical AND a horizontal
+                            # axis in response to cardinal actions; a 1-axis meter moves
+                            # one axis, and a block SHOVED BY A CLICK is not cardinal-
+                            # steerable.  Excluding click-induced movement is what stops
+                            # the false positive that wrongly flipped ka59 (a click
+                            # game) to "cardinal" and disabled the click-push.
+                            if not _is_click:
+                                axis = "v" if abs(dr) >= abs(dc) else "h"
+                                self._nav_axes.setdefault(n, set()).add(axis)
                 if self._move_counts:
-                    self._controllable_name = max(self._move_counts,
-                                                  key=self._move_counts.get)
+                    self._controllable_name = self._select_controllable(
+                        self._move_counts, self._move_dirs)
             self._prev_entity_centers = _cur_ctr
         except Exception:
             pass
@@ -5343,10 +5377,42 @@ class ExploratoryDriver:
             # with a solved-mechanic pursuit or an on-screen instruction (those
             # only fire when one actually exists, so this stays safe).
             return ("explore" in gid or "curiosity" in gid or "curiosity" in pk)
+        # META-ARBITER: count turns with NO score/level progress so a STUCK,
+        # committed exploitation can YIELD to an untried action-exploration probe
+        # rather than overriding it with a pursuit that isn't working -- the
+        # explore<->exploit re-opening that breaks a wrong-control commitment.
+        _prog = (self.world.score or 0, getattr(self.world, "level", 0) or 0)
+        if getattr(self, "_prog_mark", None) != _prog:
+            self._prog_mark = _prog
+            self._no_progress_turns = 0
+        else:
+            self._no_progress_turns = getattr(self, "_no_progress_turns", 0) + 1
+        # WIN-CONTEXT ARBITER: age refuted-context cooldowns, and INVALIDATE the
+        # committed context (dropping its chains) once it has made no progress for a
+        # window -- so a wrong theory is abandoned and a different one can commit.
+        _rc = getattr(self, "_refuted_contexts", None)
+        if _rc:
+            for _k in list(_rc):
+                _rc[_k] -= 1
+                if _rc[_k] <= 0:
+                    del _rc[_k]
+        if (getattr(self, "_active_context", None)
+                and self._no_progress_turns >= self._CONTEXT_INVALIDATE_WINDOW):
+            self._invalidate_context(
+                f"no score/level progress for {self._no_progress_turns} turns")
+        yield_to_explore = self._should_yield_to_exploration(choice)
+        if yield_to_explore:
+            print(f"[turn {self.world.turn}] YIELD-TO-EXPLORE: stuck "
+                  f"({self._no_progress_turns} turns, no score/level progress) -> "
+                  f"trying untried action {getattr(choice, 'action', '?')} instead of "
+                  f"overriding it with a non-progressing pursuit", flush=True)
+            # the committed theory is stuck -> drop it so exploration can re-pick.
+            self._invalidate_context("yielded to untried-action exploration")
         # SOLVED-MECHANIC PURSUIT — once the click-to-move step is learned from the
         # one-shot demo, WALK the piece to the goal by the numeric next-click; this
         # is the solid plan, so it preempts everything below.
-        if _is_blind_choice(choice):
+        if (_is_blind_choice(choice) and not yield_to_explore
+                and self._context_active_ok("move_law")):
             _pursue = self._move_law_pursuit(entities_for_actor)
             if _pursue is not None:
                 choice = _pursue
@@ -5357,7 +5423,8 @@ class ExploratoryDriver:
         # highlighted marker/cursor) is the thing to act on FIRST: these games
         # teach the player on screen.  Verify it RIGHT AWAY, ahead of blind probing
         # AND ahead of deferring to a generic strategy turn (it IS the solid idea).
-        if _is_blind_choice(choice):
+        if (_is_blind_choice(choice) and not yield_to_explore
+                and self._context_active_ok("instruction")):
             _instr = self._instruction_verification_probe(entities_for_actor)
             if _instr is not None:
                 choice = _instr
@@ -5368,7 +5435,8 @@ class ExploratoryDriver:
         # delivers (score-driven), deriving every parameter at run time.  Ordered
         # AFTER instruction-verification so an on-screen tutorial keeps priority, and
         # gated on a blind choice so it never overrides a real plan.
-        if _is_blind_choice(choice):
+        if (_is_blind_choice(choice) and not yield_to_explore
+                and self._context_active_ok("merge")):
             _merge = self._merge_pursuit(entities_for_actor)
             if _merge is not None:
                 choice = _merge
@@ -5382,10 +5450,13 @@ class ExploratoryDriver:
         # found -- the explore->exploit hand-off that _select_probe used to own but
         # which is skipped under use_strategy.  Gated on a blind choice (never
         # overrides a real plan); returns None until a probe-able claim exists.
-        if _is_blind_choice(choice) and self.world.probe_state.get("controllable_found"):
+        if (_is_blind_choice(choice) and not yield_to_explore
+                and self.world.probe_state.get("controllable_found")):
             # gated on controllable_found so the cheap action-trials DISCOVER the
             # controls first (which action moves the mover); only THEN does the
-            # exploit pursue a target -- explore controls, then exploit.
+            # exploit pursue a target -- explore controls, then exploit.  The
+            # not-yield_to_explore guard re-opens action exploration when a
+            # committed control has stopped making progress (wrong-control escape).
             _mst = getattr(self, "_substrate_mover_implies_target", None)
             if _mst:
                 try:
@@ -5398,23 +5469,35 @@ class ExploratoryDriver:
             # stranding itself in a near one.  This is the single-planner consolidation;
             # _cardinal_pursuit becomes the fallback for the cases MEA abstains on (and
             # can be retired once MEA is proven), then the claim-directed CLICK probe.
-            _mea = self._mea_pursuit(ss, entities_for_actor, move_step)
+            # 'deliver' (MEA push/click-push) and 'reach' (cardinal walk-in) are
+            # DISTINCT win-contexts -- gate each so only the committed one fires.
+            _mea = (self._mea_pursuit(ss, entities_for_actor, move_step)
+                    if self._context_active_ok("deliver") else None)
             if _mea is not None:
                 choice = _mea
                 print(f"[turn {self.world.turn}] MEA PURSUIT "
                       f"{choice.action!r} ({choice.rationale})", flush=True)
             else:
-                _card = self._cardinal_pursuit(ss, entities_for_actor, move_step)
+                _card = (self._cardinal_pursuit(ss, entities_for_actor, move_step)
+                         if self._context_active_ok("reach") else None)
                 if _card is not None:
                     choice = _card
                     print(f"[turn {self.world.turn}] CARDINAL PURSUIT "
                           f"{choice.action!r} ({choice.rationale})", flush=True)
                 else:
+                    # context-neutral DISCOVERY: refine which context to commit to.
                     _exploit = self._claim_directed_probe(entities_for_actor)
                     if _exploit is not None:
                         choice = _exploit
                         print(f"[turn {self.world.turn}] CLAIM-DIRECTED EXPLOIT "
                               f"{choice.action!r} ({choice.rationale})", flush=True)
+        # COMMIT the win-context of the chosen win-pursuit so it PERSISTS next turn
+        # (competing contexts stay suppressed) until invalidated.  Context-neutral
+        # choices (explore / claim-probe / handoff) leave the commitment unchanged,
+        # so a momentary abstention does not drop the committed theory.
+        _ctx = self._context_of(choice)
+        if _ctx is not None:
+            self._active_context = _ctx
         # AUTONOMOUS CURIOSITY PROBE — when grid planning yielded no action
         # (a non-grid / continuous-arena game, or the grid planner stalled),
         # fall back to a coverage-driven probe of the action space so COS can
@@ -8368,6 +8451,213 @@ class ExploratoryDriver:
         except Exception:
             return None
 
+    def _spatial_progress_ok(self, mover_cell, target_cell, *, stall_limit=5,
+                             retarget_tol=4):
+        """Distance-to-TARGET progress guard shared by the spatial pursuits.
+
+        The convergence watchdogs only ask 'did the mover MOVE at all'; they miss
+        the failure where the mover moves every turn but never CLOSER to the
+        target -- an action that only changes one axis can never close a
+        perpendicular gap, so the agent slides along forever (ka59: the tracked
+        'mover' crept UP for 50 turns while its column never approached the
+        target).  This tracks the BEST mover->target distance toward the current
+        target; if no NEW minimum is reached within ``stall_limit`` steps the
+        pursuit is not converging.  A target that jumps by more than
+        ``retarget_tol`` is a NEW objective -> a fresh progress window.  Returns
+        True while progressing, False on a stall."""
+        try:
+            mc = (int(mover_cell[0]), int(mover_cell[1]))
+            tc = (int(target_cell[0]), int(target_cell[1]))
+        except Exception:
+            return True
+        dist = abs(mc[0] - tc[0]) + abs(mc[1] - tc[1])
+        prev_t = getattr(self, "_pp_target", None)
+        if (prev_t is None
+                or abs(prev_t[0] - tc[0]) + abs(prev_t[1] - tc[1]) > retarget_tol):
+            self._pp_target = tc
+            self._pp_best = dist
+            self._pp_stall = 0
+            return True
+        if dist < getattr(self, "_pp_best", dist):
+            self._pp_best = dist
+            self._pp_stall = 0
+            return True
+        self._pp_stall = getattr(self, "_pp_stall", 0) + 1
+        return self._pp_stall < stall_limit
+
+    def _spatial_pursuit_stalled(self, target_cell, tag):
+        """Record a non-converging spatial pursuit: open a short cooldown that
+        suppresses BOTH spatial pursuits (so exploration can try a different
+        action / re-identify the control) and reset the progress window for a
+        clean retry once it lifts.  This is what turns ka59's 50 futile identical
+        moves into a few moves + a switch to exploring another control."""
+        self._spatial_cooldown = 5
+        self._pp_target = None
+        self._pp_best = None
+        self._pp_stall = 0
+        # a stalled spatial pursuit refutes its win-context too -> drop its chains.
+        self._invalidate_context(f"{tag} pursuit stalled")
+        print(f"[{tag}] pursuit STALLED -- moving but NOT closing on {target_cell} "
+              f"-> abandon + {self._spatial_cooldown}-turn cooldown so exploration "
+              f"can try another action/control (likely wrong move-law/controllable)",
+              flush=True)
+
+    @staticmethod
+    def _select_controllable(move_counts, move_dirs):
+        """Pick the controllable from the motion trials.  Prefer an entity that has
+        demonstrated 2-D NAVIGABILITY -- moved in >=2 distinct directions, a
+        steerable scene agent -- over one that only advances along a SINGLE axis (a
+        HUD meter / score bar / slider an action happens to nudge, the ka59
+        mis-identification).  Among the navigable candidates take the most
+        consistently-moving (highest move count); fall back to raw move count
+        before any candidate has shown two directions (bootstrap) and for genuine
+        1-D games (so this never regresses a game whose agent really is 1-axis).
+        ``move_dirs`` maps name -> set of cardinal directions observed.  Returns the
+        controllable name, or None when nothing has moved."""
+        if not move_counts:
+            return None
+        navigable = {n: c for n, c in move_counts.items()
+                     if len(move_dirs.get(n) or ()) >= 2}
+        pool = navigable or move_counts
+        return max(pool, key=pool.get)
+
+    # WIN-CONDITION CONTEXT arbiter: each reasoning chain + its actions belong to
+    # ONE context -- a hypothesis about HOW THE GAME IS WON (merge / push-cargo-to-
+    # slot / walk-to-target / ...).  Only one context is pursued at a time; when it
+    # is invalidated, its chains are dropped with it and a different context is
+    # selected.  Without this COS re-litigates which game it is playing every turn,
+    # flip-flopping between disparate, mutually-inconsistent theories.
+    _CONTEXT_INVALIDATE_WINDOW = 8     # no-progress turns before a context is dropped
+    _CONTEXT_COOLDOWN = 10             # turns a refuted context stays suppressed
+
+    @staticmethod
+    def _context_of(choice):
+        """The win-condition CONTEXT a choice belongs to, or None for context-neutral
+        DISCOVERY (explore / claim-probe -- these refine WHICH context to commit to
+        and so never lock one in).  Each non-None context is a distinct, mutually-
+        exclusive theory of the game; committing to one suppresses the others."""
+        pk = str(getattr(choice, "plan_kind", "") or "")
+        gid = str(getattr(choice, "goal_id", "") or "")
+        if "merge" in pk or "merge" in gid:
+            return "merge"
+        if pk.startswith("mea") or "click_push" in gid:
+            return "deliver"
+        if pk == "cardinal_pursuit":
+            return "reach"
+        if pk == "move_law_pursuit":
+            return "move_law"
+        if "instruction" in pk:
+            return "instruction"
+        return None
+
+    def _context_active_ok(self, ctx) -> bool:
+        """A win-pursuit for ``ctx`` may fire iff NO OTHER context is committed and
+        ``ctx`` is not on refuted-cooldown.  This is what enforces 'one context at a
+        time' and stops the turn-to-turn flip-flop between disparate theories."""
+        if ctx in (getattr(self, "_refuted_contexts", None) or {}):
+            return False
+        ac = getattr(self, "_active_context", None)
+        return ac is None or ac == ctx
+
+    def _invalidate_context(self, why: str) -> None:
+        """Tear down the committed win-context AND the derived reasoning/pursuit
+        state that belongs to it (so its chains do not persist), put it on cooldown
+        so it is not immediately re-selected, and let a DIFFERENT context be chosen.
+        Invalidating the CONTEXT invalidates its chains -- the core of the model."""
+        ac = getattr(self, "_active_context", None)
+        if ac is None:
+            return
+        self._refuted_contexts = getattr(self, "_refuted_contexts", {})
+        self._refuted_contexts[ac] = self._CONTEXT_COOLDOWN
+        if ac == "merge":
+            try:
+                self._mg_reset()
+            except Exception:
+                pass
+        if ac in ("deliver", "reach"):
+            for a in ("_mea_prev_pos", "_mea_stuck", "_pp_target", "_pp_best",
+                      "_pp_stall", "_card_prev_pos", "_card_stuck"):
+                try:
+                    setattr(self, a, None)
+                except Exception:
+                    pass
+        self._committed_objective = None     # the target is part of the dropped chain
+        self._active_context = None
+        self._prog_mark = None          # fresh progress window for the next context
+        self._no_progress_turns = 0
+        print(f"[turn {getattr(self.world, 'turn', '?')}] CONTEXT INVALIDATED "
+              f"'{ac}' ({why}) -> its reasoning chains dropped; cooled down "
+              f"{self._CONTEXT_COOLDOWN} turns; a different context can now commit",
+              flush=True)
+
+    def _observe_click_law(self, entities) -> None:
+        """LEARN how a click moves a block, from the block's MEASURED response to
+        the last click-push -- not a hardcoded mechanic.  Builds a probe record
+        (control_law_induction.make_probe) from the committed cargo's before/after
+        centres + the click cell, accumulates them, and induces the DIRECTION (a
+        click moves a block TOWARD vs AWAY from the click).  Once learned, the
+        click-push drives the click accordingly (toward the slot, or behind the
+        block).  Guarded; game-scoped."""
+        pend = getattr(self, "_pending_click_push", None)
+        self._pending_click_push = None
+        if not pend:
+            return
+        try:
+            e = next((x for x in (entities or [])
+                      if x.get("name") == pend["cargo"]), None)
+            bb = (((e or {}).get("bbox_ticks_turn1") or (e or {}).get("bbox"))
+                  if e else None)
+            if not (bb and len(bb) >= 4):
+                return
+            after = ((bb[0] + bb[2]) / 2.0, (bb[1] + bb[3]) / 2.0)
+            import control_law_induction as _cli
+            rec = _cli.make_probe(pend["cargo_center"], pend["click_cell"], after)
+            self._click_probes = getattr(self, "_click_probes", [])
+            self._click_probes.append(rec)
+            if rec["moved"]:
+                self._click_law_tries = 0          # a move resets probe alternation
+                law = _cli.induce_law(self._click_probes)
+                d = law.get("direction")
+                if d in ("toward", "away") and law.get("n_launched", 0) >= 2:
+                    if getattr(self, "_click_law_direction", None) != d:
+                        self._click_law_direction = d
+                        print(f"[click-law] LEARNED from {law['n_launched']} observed "
+                              f"block-moves: a click moves a block '{d}' the click -> "
+                              + ("click toward the slot" if d == "toward"
+                                 else "click behind the block (push)"), flush=True)
+        except Exception:
+            pass
+
+    def _should_yield_to_exploration(self, choice) -> bool:
+        """Break the 'exploit preempts explore' lock.
+
+        ``controllable_found`` latches after ONE action relocates an entity -- but
+        that entity may be a HUD element, not the scene agent, and thereafter the
+        pursuits override the planner's UNTRIED-action trials every turn, so the
+        real control is never discovered (ka59: ACTION1 nudges a HUD meter, the
+        pursuit keeps walking the wrong 'mover', and ACTION2-5 are proposed but
+        never executed).  When a committed exploitation has made NO score/level
+        progress for a window of turns, let an untried action-exploration probe
+        through instead of overriding it -- so the agent exhausts the untried
+        action space when stuck.  Fires ONLY when stuck AND the choice is an
+        explore-action for an action NOT yet taken, so a SCORING game (su15/tn36)
+        never yields -- no regression for games whose pursuits work."""
+        try:
+            if not self.world.probe_state.get("controllable_found"):
+                return False
+            if getattr(self, "_no_progress_turns", 0) < 6:
+                return False
+            gid = (str(getattr(choice, "goal_id", "")) + " "
+                   + str(getattr(choice, "plan_kind", "")))
+            if "explore" not in gid and "curiosity" not in gid:
+                return False
+            act = str(getattr(choice, "action", "") or "")
+            taken = {str(getattr(a, "action", "")) for a in
+                     (getattr(self.world, "actions_taken", []) or [])}
+            return bool(act) and act != "NONE" and act not in taken
+        except Exception:
+            return False
+
     def _mea_pursuit(self, ss, entities_for_actor, move_step):
         """MEA-AUTHORITATIVE exploit: route action selection through
         ``MeansEnds.next_step`` so the PLANNER decides each step (WALK toward a target,
@@ -8396,6 +8686,14 @@ class ExploratoryDriver:
             if not (mb and len(mb) >= 4):
                 return None
             ac = (int(round((mb[0] + mb[2]) / 2)), int(round((mb[1] + mb[3]) / 2)))
+            # SPATIAL-PURSUIT COOLDOWN: a recent stall (moving but not converging)
+            # suppresses both spatial pursuits so exploration can try a different
+            # action / control.  Decremented HERE (MEA runs before the cardinal
+            # pursuit each turn); the cardinal pursuit only checks it.
+            cd = getattr(self, "_spatial_cooldown", 0)
+            if cd > 0:
+                self._spatial_cooldown = cd - 1
+                return None
             # convergence watchdog (separate from _cardinal_pursuit's): if the mover
             # has not moved across consecutive MEA steps, the action isn't working ->
             # drop so it falls back instead of looping.
@@ -8422,7 +8720,14 @@ class ExploratoryDriver:
                     goals.append((abs(gc[0] - ac[0]) + abs(gc[1] - ac[1]), e))
             if not goals:
                 return None
-            goals.sort(key=lambda t: t[0])
+            # TARGET COMMITMENT: pursue the SAME objective across turns (the
+            # committed one sorts first; nearest otherwise) instead of re-picking
+            # the nearest every turn -- otherwise the mover wanders between goals,
+            # never reaches one, and the churn resets the progress guard.  Cleared
+            # when the context is invalidated, so a new theory picks a fresh target.
+            _committed = getattr(self, "_committed_objective", None)
+            goals.sort(key=lambda t: (t[1].get("name") != _committed, t[0]))
+            self._committed_objective = goals[0][1].get("name")
             # intermediaries grounded in OBSERVED motion + the optimistic walkable
             # (every cell not EMPIRICALLY bounced off -- weak wall labels never block).
             moved = getattr(self, "_move_counts", {}) or {}
@@ -8500,6 +8805,100 @@ class ExploratoryDriver:
                     delivery["cargo"] = {"bbox_ticks_turn1": [int(x) for x in cbx],
                                          "name": cargo.get("name")}
                 deliveries.append(delivery)
+
+            # TARGET COMMITMENT (MEA): pursue ONLY the committed delivery so the
+            # mover's target is stable across turns (the goal_tree's stranding sort
+            # would otherwise re-pick a different slot each turn -> aimless walking).
+            # Advance past a delivery whose cargo is already SEATED so a completing
+            # game is not stuck on a finished slot.
+            def _seated(dv):
+                c = dv.get("cargo")
+                if not c:
+                    return False
+                cb = c["bbox_ticks_turn1"]
+                gb = dv["goal"]["bbox_ticks_turn1"]
+                cc = ((cb[0] + cb[2]) / 2.0, (cb[1] + cb[3]) / 2.0)
+                gc = ((gb[0] + gb[2]) / 2.0, (gb[1] + gb[3]) / 2.0)
+                return abs(cc[0] - gc[0]) + abs(cc[1] - gc[1]) <= 2
+            _cdv = next((dv for dv in deliveries
+                         if dv["goal"].get("name") == self._committed_objective
+                         and not _seated(dv)), None)
+            if _cdv is None:                      # committed slot done/gone -> advance
+                _cdv = next((dv for dv in deliveries if not _seated(dv)), None)
+                self._committed_objective = (_cdv["goal"].get("name")
+                                             if _cdv else self._committed_objective)
+            if _cdv is not None:
+                deliveries = [_cdv]
+
+            # CLICK-CONTROLLED PUSH: when NO navigable cardinal agent exists (no
+            # entity has moved in >=2 distinct directions), the game is not steered
+            # by cardinal moves -- it is CLICK-controlled (ka59: ACTION1 only nudges
+            # a HUD meter; the blocks move on CLICKS).  There is no walking agent to
+            # route through the AND-OR tree, so deliver the cargo by CLICKING toward
+            # its slot, reusing the merge family's validated click-to-move law
+            # (_mg_safe_click: a click moves the nearest movable piece toward the
+            # click, within grab range; converges over turns).  Gated on a cargo<->
+            # slot pairing; the cargo->slot progress guard refutes it (-> cooldown ->
+            # exploration) if the click does not close the gap.  _mea_pursuit already
+            # runs AFTER move-law/merge pursuits, so this never overrides them; a
+            # cardinal game flips to has_navigable and uses the walking tree below.
+            # a genuinely steerable cardinal agent moved on BOTH axes via NON-click
+            # actions (see _nav_axes); 'moved in 2 directions' alone false-positives
+            # on a 1-axis meter (up+down) or a block shoved by clicks, which wrongly
+            # disabled the click-push on ka59 (a click game).
+            has_navigable = any({"v", "h"} <= ax for ax in
+                                (getattr(self, "_nav_axes", {}) or {}).values())
+            avail = (getattr(self.world, "_available_actions", None)
+                     or getattr(self.world, "available_actions", None) or [])
+            click_ok = (not avail) or any(str(a) in ("6", "ACTION6", "CLICK")
+                                          for a in avail)
+            _pstate = getattr(self.world, "probe_state", None) or {}
+            if (_pstate.get("controllable_found")
+                    and not has_navigable and click_ok):
+                for dv in deliveries:
+                    cargo = dv.get("cargo")
+                    if not cargo:
+                        continue
+                    cb = cargo.get("bbox_ticks_turn1")
+                    gbx = dv["goal"].get("bbox_ticks_turn1")
+                    if not (cb and gbx):
+                        continue
+                    cc = ((cb[0] + cb[2]) / 2.0, (cb[1] + cb[3]) / 2.0)
+                    gcn = ((gbx[0] + gbx[2]) / 2.0, (gbx[1] + gbx[3]) / 2.0)
+                    if abs(cc[0] - gcn[0]) + abs(cc[1] - gcn[1]) <= 2:
+                        continue                       # this cargo already seated
+                    if not self._spatial_progress_ok(cc, gcn):
+                        self._spatial_pursuit_stalled(gcn, "click-push")
+                        return None
+                    # LEARNED CLICK LAW (observed, not assumed): 'toward' -> click
+                    # toward the slot so the block follows the click; 'away' (push-
+                    # from-behind) -> click the side opposite the slot.  Until learned,
+                    # alternate so BOTH polarities are probed; _observe_click_law
+                    # induces the real one from the block's measured response.
+                    law = getattr(self, "_click_law_direction", None)
+                    if law is None:
+                        _t = getattr(self, "_click_law_tries", 0)
+                        law = "toward" if (_t // 2) % 2 == 0 else "away"
+                    if law == "away":
+                        oc, _dn = _me._push_geometry(cb, gcn, step)
+                    else:
+                        oc = self._mg_safe_click(cc, gcn, static_target=True)
+                    r = int(round(max(0, min(self.n_ticks - 1, oc[0]))))
+                    c = int(round(max(0, min(self.n_ticks - 1, oc[1]))))
+                    act = f"CLICK:{c},{r}"
+                    self._click_law_tries = getattr(self, "_click_law_tries", 0) + 1
+                    self._pending_click_push = {"cargo": cargo.get("name"),
+                                                "cargo_center": (cc[0], cc[1]),
+                                                "click_cell": (float(r), float(c))}
+                    return SimpleNamespace(
+                        action=act, plan_kind="mea_click_push",
+                        rationale=(f"click-push ({law}): click ({r},{c}) to drive cargo "
+                                   f"'{cargo.get('name')}' toward slot "
+                                   f"'{dv['goal'].get('name')}' (no cardinal agent)"),
+                        goal_id=f"click_push:{cargo.get('name')}",
+                        target_cell=(r, c), full_plan_actions=[act], is_probe=True)
+                # no cargo pairing -> fall through to the walking tree (rare).
+
             root = mea.goal_tree_conjunctive(deliveries, ctx)
             try:
                 self._mea_tree = "\n".join(_me.render_tree(root))
@@ -8521,6 +8920,11 @@ class ExploratoryDriver:
                     full_plan_actions=[direction], is_probe=True)
             if kind == "WALK" and info.get("target_cell"):
                 tc = (int(info["target_cell"][0]), int(info["target_cell"][1]))
+                # PROGRESS GUARD: abandon if the mover keeps walking but is not
+                # getting closer to tc (the action cannot close the gap).
+                if not self._spatial_progress_ok(ac, tc):
+                    self._spatial_pursuit_stalled(tc, "mea")
+                    return None
                 p = bfs(ac, tc, optimistic, step=step, goal_tolerance=max(1, step // 2))
                 if p and len(p) > 1:
                     dd = _direction(ac, p[1])
@@ -8575,6 +8979,10 @@ class ExploratoryDriver:
             if ac is None:
                 return None
             ac = (int(ac[0]), int(ac[1]))
+            # Honour the shared spatial-pursuit cooldown (set when a pursuit stalled
+            # while moving but not converging); decremented in _mea_pursuit.
+            if getattr(self, "_spatial_cooldown", 0) > 0:
+                return None
             # CONVERGENCE WATCHDOG: if the tracked mover's position has NOT changed
             # across consecutive pursuit steps, the emitted cardinal action isn't
             # moving it (wrong controllable, or fully blocked) -> drop so it falls
@@ -8605,6 +9013,11 @@ class ExploratoryDriver:
             if not cands:
                 return None
             cands.sort()
+            # TARGET COMMITMENT: try the COMMITTED objective first (nearest only as
+            # fallback), so the mover heads to ONE goal to completion instead of
+            # chasing whichever goal is nearest this turn (the aimless wandering).
+            _committed = getattr(self, "_committed_objective", None)
+            cands.sort(key=lambda t: (t[2] != _committed, t[0]))
             # optimistic walkable: every cell not EMPIRICALLY bounced off (matches
             # cell_actor's philosophy; avoids build_world_state, which requires a
             # grid agent_cell that a non-grid scene lacks).  Wall/scenery bbox
@@ -8620,6 +9033,12 @@ class ExploratoryDriver:
                 if p and len(p) > 1:
                     direction = _direction(ac, p[1])
                     if direction in ("UP", "DOWN", "LEFT", "RIGHT"):
+                        # PROGRESS GUARD: abandon if the mover keeps walking toward
+                        # this target without getting closer (wrong move-law/control).
+                        if not self._spatial_progress_ok(ac, tcell):
+                            self._spatial_pursuit_stalled(tcell, "cardinal")
+                            return None
+                        self._committed_objective = tname   # commit to what we pursue
                         from types import SimpleNamespace
                         return SimpleNamespace(
                             action=direction, plan_kind="cardinal_pursuit",

@@ -17,6 +17,6 @@
     "arc-prize-2026-arc-agi-3"
   ],
   "model_sources": [
-    "REPLACE_WITH_GEMMA_MODEL_SLUG"
+    "REPLACE_WITH_QWEN3_VL_8B_MODEL_SLUG"
   ]
 }

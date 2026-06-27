@@ -2,7 +2,7 @@
 
 `backends.call_oracle` has NO local-vLLM route: `google/gemma-*` slugs go to
 OpenRouter/Together (cloud), which the offline Kaggle sandbox can't reach. For the
-offline submission serving gemma-4-31b via **vLLM on localhost**, we install a thin
+offline submission serving a local VLM (Qwen3-VL-8B via serve_vlm.py) on localhost, we install a thin
 wrapper that intercepts `vllm/<host:port>/<served-model-name>` slugs and POSTs to
 the local OpenAI-compatible endpoint, falling through to the original routing for
 every other slug.
@@ -12,7 +12,7 @@ backends.py. cos_responder does `import backends; backends.call_oracle(...)`, so
 patching the module attribute is picked up.
 
 Usage (notebook, once, before the agent runs):
-    os.environ["QWEN_MODEL_SLUG"] = "vllm/127.0.0.1:8000/gemma-4-31b-it"
+    os.environ["QWEN_MODEL_SLUG"] = "vllm/127.0.0.1:8000/qwen3-vl-8b"
     import vllm_backend; vllm_backend.install()
 """
 from __future__ import annotations
