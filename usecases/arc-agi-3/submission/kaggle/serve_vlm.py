@@ -29,17 +29,27 @@ from flask import Flask, jsonify, request
 
 
 def _load(model_dir: str):
-    """Load the VLM, trying the modern generic class first, then fallbacks.
-
-    Uses bf16 where the GPU supports it (Blackwell/Ampere+, e.g. RTX PRO 6000) --
-    the dtype these models are trained in -- and falls back to fp16 on Turing (T4)."""
+    """Load the VLM. Tries the architecture class the model DECLARES (in its
+    config.json `architectures`, e.g. Qwen3VLMoeForConditionalGeneration for the
+    30B-A3B MoE) first -- the generic AutoModel* registries don't cover every new
+    variant -- then falls back to the Auto classes. bf16 where the GPU supports it
+    (Blackwell/Ampere+, e.g. RTX PRO 6000); fp16 on Turing (T4)."""
+    import json
+    import os
     import transformers
     dtype = (torch.bfloat16 if torch.cuda.is_available()
              and torch.cuda.is_bf16_supported() else torch.float16)
     print(f"[serve_vlm] dtype={dtype}", flush=True)
+    candidates = []
+    try:
+        arch = json.load(open(os.path.join(model_dir, "config.json"))).get("architectures")
+        candidates += list(arch or [])
+    except Exception:
+        pass
+    candidates += ["AutoModelForImageTextToText", "AutoModelForVision2Seq",
+                   "AutoModelForCausalLM"]
     last = None
-    for cls_name in ("AutoModelForImageTextToText", "AutoModelForVision2Seq",
-                     "AutoModelForCausalLM"):
+    for cls_name in candidates:
         cls = getattr(transformers, cls_name, None)
         if cls is None:
             continue
@@ -51,7 +61,7 @@ def _load(model_dir: str):
         except Exception as e:  # noqa: BLE001
             last = e
             print(f"[serve_vlm] {cls_name} failed: {type(e).__name__}: {e}", flush=True)
-    raise last
+    raise last if last else RuntimeError("no model class loaded")
 
 
 def _data_url_to_image(url: str) -> Image.Image:
