@@ -3,8 +3,8 @@
 **Team:** KHUB.AI  ·  **Code:** <https://github.com/khub-ai/arc-agi-3> (MIT-0)  ·
 **Approach:** Cognitive OS (COS) — a general, VLM-in-the-loop cognitive architecture.
 
-> **Draft.** Fill in the bracketed `[…]` items (score, submission version, run
-> timings) after the scored submission. Everything else reflects the shipped code.
+> **Milestone #1 (June 30, 2026).** The result below is the scored Milestone #1
+> submission; everything else reflects the shipped code at tag `v0.1-milestone1`.
 
 ## Summary
 
@@ -16,8 +16,12 @@ planning toward the win condition, exploring to reduce uncertainty when no path
 is known. A local, frozen, open-weights **Qwen3-VL-32B-Instruct** serves as the strategy
 vision-language model. No game-specific code and no per-game memory are used.
 
-**Result:** `[SCORE]`% on the ARC-AGI-3 evaluation (`[N]` of `[M]` games advanced;
-`[date]`, notebook version `[v]`).
+**Result (Milestone #1):** **0.00** — the scored rerun finished with Kaggle status
+**`Succeeded`** and produced a valid submission (the pipeline ran end-to-end without
+error), but credited **0 completed levels** (2026-06-30, notebook version 2). RHAE
+scores only *completed* levels, so a working agent that does not yet close an unseen
+game **cold** — from a clean knowledge base, within a single run — scores 0. That
+cold-solve capability is the active gap (see "What worked, what didn't").
 
 ## Approach
 
