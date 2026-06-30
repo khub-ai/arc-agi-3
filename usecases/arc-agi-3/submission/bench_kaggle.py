@@ -87,7 +87,7 @@ def stop(p):
     time.sleep(8)
 
 
-_TRACE = re.compile(r"grounding QA|\[fw\]|levels_completed|SCORED|Traceback|"
+_TRACE = re.compile(r"grounding QA|\[fw\]|\[perception\]|remap|cands|levels_completed|SCORED|Traceback|"
                     r"Error|Exception|ACTION|CLICK|RESET|turn[_ ]?\d|claim|triage",
                     re.IGNORECASE)
 

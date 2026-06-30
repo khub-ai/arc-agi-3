@@ -47,6 +47,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+
+def _copy_raw_frame(src, turn_dir):
+    """Copy the RAW (un-gridded) playfield frame to turn_dir/raw_frame.png so
+    cos_responder._blobs measures a CLEAN frame, not the grid-annotated curr_frame.png
+    (whose axis labels/margins make _blobs over-segment, e.g. ka59 31 cands vs ~12). The
+    driver's normal raw-frame dir (RAW_DIR) is the READ-ONLY dataset mount on Kaggle, so
+    the clean frame must live beside the turn's prompts. Best-effort; never breaks perception."""
+    try:
+        s = Path(str(src))
+        if s.exists():
+            shutil.copy2(str(s), str(Path(str(turn_dir)) / "raw_frame.png"))
+    except Exception:
+        pass
+
+
 sys.path.insert(0, str(Path(__file__).parent))
 from cell_actor import choose_action, ActionChoice              # noqa: E402
 from game_adapter import (                                       # noqa: E402
@@ -1164,6 +1179,7 @@ class ExploratoryDriver:
     def stage_initial_perception(self, frame_path: Path) -> Path:
         turn_dir = self.work_dir / "turn_001"
         turn_dir.mkdir(parents=True, exist_ok=True)
+        _copy_raw_frame(frame_path, turn_dir)   # clean un-gridded frame for cos_responder._blobs
         grid_img = self._gridded_for(
             frame_path, turn_dir / "image_grid.png",
         )
@@ -2283,6 +2299,7 @@ class ExploratoryDriver:
         turn_dir.mkdir(parents=True, exist_ok=True)
         _T = os.environ.get("COS_TIMING")
         _t0 = time.time()
+        _copy_raw_frame(curr_frame, turn_dir)   # clean un-gridded frame for cos_responder._blobs
         self._gridded_for(prev_frame, turn_dir / "prev_frame.png")
         self._gridded_for(curr_frame, turn_dir / "curr_frame.png")
         _t1 = time.time()

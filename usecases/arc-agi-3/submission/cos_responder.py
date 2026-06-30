@@ -233,6 +233,16 @@ def _blobs(raw_path):
             out.append({"bbox": [int(r0), int(c0), int(r1), int(c1)],
                         "center": [int(o["center"][0]), int(o["center"][1])],
                         "cells": int(o["npix"]), "color": o["color"]})
+        # EDGE-SPECK FILTER: a noisy frame over-segments into 1-2px specks at the frame
+        # BORDER (corner pixels, HUD anti-alias) that are never game objects but flood the
+        # candidate list -> the completeness loop boxes dozens of phantom 'white_pixel_*'
+        # (grounding collapses) and the VLM is re-asked about each (pace explodes). Drop ONLY
+        # tiny specks TOUCHING the border; real objects sit inset on the playfield and a real
+        # marker on an object is not at the frame edge. Conservative + game-agnostic.
+        if os.environ.get("COS_DROP_EDGE_SPECKS", "1") not in ("0", "false", "False"):
+            out = [c for c in out if not (c["cells"] <= 2 and (
+                c["bbox"][0] <= 1 or c["bbox"][1] <= 1
+                or c["bbox"][2] >= 62 or c["bbox"][3] >= 62))]
         if out:
             return out
     except Exception:
@@ -278,7 +288,8 @@ PERC_SYS = (
     "mover should reach), marker (a small transient cue/cross/cursor), hud (a status "
     "bar/counter/legend), wall, decoration.\n"
     "JSON schema: {\"entities\":[{\"name\":<short_unique>,\"bbox\":[r0,c0,r1,c1],"
-    "\"role\":<role>,\"appearance\":<2-3 words>}], \"game_type\":<short>, "
+    "\"covers\":[<C# ids from the measured-regions list that make up this object, when that list "
+    "is provided>],\"role\":<role>,\"appearance\":<2-3 words>}], \"game_type\":<short>, "
     "\"game_purpose\":<one sentence: what the player must do to win>}")
 
 
@@ -639,7 +650,20 @@ def _draw_review_overlay(raw_path, entities, out_path, up=10):
 
 def _handle_perception_vlm_led(reply_path, prompt, is_delta):
     raw = _latest_raw()
+    if not raw:                                 # live serve: RAW_DIR defaults under the READ-ONLY
+        # raw_frame.png = the CLEAN un-gridded frame the driver copies beside the prompts;
+        # curr_frame.png / image_grid.png are GRID-ANNOTATED (their labels/margins make _blobs
+        # over-segment, e.g. ka59 31 cands vs ~12). Prefer the clean one; gridded = last resort.
+        for _nm in ("raw_frame.png", "curr_frame.png", "image_grid.png"):
+            _p = reply_path.parent / _nm
+            if _p.exists():
+                raw = str(_p)
+                break
     cands = _blobs(raw) if raw else []          # substrate MEASUREMENTS = unreliable candidates
+    # cands drives BOTH the coord-adopt prompt clause AND the pixel->tick remap; if it is empty
+    # (the read-only-RAW_DIR bug above) neither coordinate fix can fire -> log it loudly.
+    print(f"[perception] substrate cands={len(cands)} "
+          f"(raw={'set' if raw else 'NONE -- no frame found, coord fixes disabled'})", flush=True)
     # ANCHOR-RELEASE: the driver sets PERCEPTION-RESET in the prompt when the PRIOR perception
     # grounded at QA~0 (its boxes were too COARSE -- the QA=0 lock).  Clear the stable-id tracker
     # so this turn re-identifies FINELY instead of inheriting the frozen coarse labels.  The
@@ -684,6 +708,7 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
         lab = f" (last labelled '{t['label']}')" if t.get("label") else ""   # measurement, never a key)
         return f"C{t['id']} bbox {t['bbox']} colour {t['color']}{lab}"
     checklist = "; ".join(_cl(t) for t in tracked)
+    cid_bbox = {t["id"]: tuple(t["bbox"]) for t in tracked}   # C# -> measured bbox (id-binding)
     accountability = (("\n\nThe substrate MEASURED these non-background regions, each with a STABLE id "
                        "(C#) tracked across turns -- ACCOUNT FOR EVERY ONE: cover it inside an object "
                        "(MERGE the regions that are parts of one object into that object's bbox), or "
@@ -708,11 +733,15 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
     # COS_COORD_ADOPT_ASSIST=0.
     if (cands and len(cands) <= 30
             and os.environ.get("COS_COORD_ADOPT_ASSIST", "1") not in ("0", "false", "False")):
-        accountability += ("\nThese measured bboxes are EXACT pixel facts: for each object you keep, "
-                           "SET its bbox to the measured coordinates of the region(s) it covers -- "
-                           "adopt those numbers VERBATIM, do NOT invent or eyeball coordinates. Your "
-                           "job is to decide WHICH regions form one object and WHAT each is (role); "
-                           "the coordinates are already measured for you.")
+        accountability += ("\nThese measured bboxes are EXACT pixel facts. Do NOT eyeball or invent "
+                           "coordinates -- instead, for EACH object you keep, list in \"covers\" the "
+                           "C# id(s) from the measured-regions list above that make up that object "
+                           "(e.g. a green piece with a white centre = the green C# plus the white C# "
+                           "sitting inside it). We TAKE the object's geometry from those measured "
+                           "regions VERBATIM, so your only job is to decide WHICH C# regions form each "
+                           "object and WHAT it is (name + role) -- match by the COLOUR and POSITION "
+                           "shown in the list, not by guessing numbers. Only if an object has no "
+                           "measured region at all, give your best bbox.")
     user = ("Look at the grid-annotated frame (TICK coords; row 0 = top, col 0 = left) and identify "
             "EVERY distinct game object you SEE -- the player/mover, every piece, goals, "
             "markers/cursors, walls/barriers, LINES and wires, and small marks. A piece of a "
@@ -720,10 +749,21 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
             "marks; do not miss small ones. Give each a ROUGH bbox [row0,col0,row1,col1] read off "
             "the grid -- the substrate will measure it EXACTLY in the next step, so approximate is "
             "fine." + accountability + "\n\nOutput the JSON now:")
-    # k=2: keep the RICHER identification (more real objects seen)
+    # PER-TURN VLM-CALL BUDGET: the perception loop can otherwise fire identify(2) +
+    # escalation(1) + review(up to 6) = ~6-9 slow VLM calls/turn, catastrophic for a full
+    # run -- ESPECIALLY when an over-segmented frame keeps the completeness/review loop busy.
+    # Cap the total perception VLM calls; the stages below check the remaining budget. 0 =
+    # unlimited (dev). Default keeps identify(<=2) + escalation(1) + one review pass.
+    _PBUDGET = int(os.environ.get("COS_PERC_MAX_VLM_CALLS", "4") or 4)
+    _pcalls = 0
+    # k=2: keep the RICHER identification (more real objects seen), budget permitting
     obj = None
-    for _ in range(2):
+    _k = max(1, int(os.environ.get("COS_PERC_IDENTIFY_K", "2") or 2))
+    for _ in range(_k):
+        if _PBUDGET > 0 and _pcalls >= _PBUDGET:
+            break
         cand = _json_obj(_qwen(PERC_SYS, user, str(img) if img.exists() else None, tier="deep"))
+        _pcalls += 1
         if cand and cand.get("entities"):
             if obj is None or len(cand["entities"]) > len(obj.get("entities", [])):
                 obj = cand
@@ -747,9 +787,10 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
             _vb = [e.get("bbox") for e in (obj.get("entities") or [])
                    if isinstance(e.get("bbox"), (list, tuple)) and len(e.get("bbox")) == 4]
             _flat = [float(v) for b in _vb for v in b]
+            _mx = max(_flat) if _flat else 0.0
             # arm only when coords are CLEARLY render-pixel (>> the tick grid), so a strong
             # localizer that emits a slightly-out tick value (e.g. 65) is never wrongly remapped.
-            if _flat and max(_flat) > 2 * _NT and len(_vb) >= 2 and len(cands) >= 2:
+            if _flat and _mx > 2 * _NT and len(_vb) >= 2 and len(cands) >= 2:
                 vr0 = min(float(b[0]) for b in _vb); vc0 = min(float(b[1]) for b in _vb)
                 vr1 = max(float(b[2]) for b in _vb); vc1 = max(float(b[3]) for b in _vb)
                 mr0 = min(b["bbox"][0] for b in cands); mc0 = min(b["bbox"][1] for b in cands)
@@ -763,18 +804,40 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
                 print(f"[perception] pixel->tick remap ARMED (VLM reports pixels): extent "
                       f"rows[{vr0:.0f}..{vr1:.0f}] cols[{vc0:.0f}..{vc1:.0f}] -> measured "
                       f"rows[{mr0}..{mr1}] cols[{mc0}..{mc1}], scale {sr:.3f},{sc:.3f}", flush=True)
-        except Exception:
+            else:
+                print(f"[perception] pixel->tick remap NOT armed: vb={len(_vb)} cands={len(cands)} "
+                      f"maxcoord={_mx:.0f} (need maxcoord>{2 * _NT}, vb>=2, cands>=2)", flush=True)
+        except Exception as _e:
             _remap = None
+            print(f"[perception] pixel->tick remap EXCEPTION: {type(_e).__name__}: {_e}", flush=True)
 
     def _emit(e, dedup=False):
         bb = e.get("bbox") if isinstance(e, dict) else None
+        # COMPONENT-ID BINDING (weak-localizer fix): if the VLM cited which measured C# components
+        # this object covers, take the geometry from those components VERBATIM. A weak localizer
+        # classifies KINDS well but confabulates COORDS (ka59: greens placed ~30 cols off while the
+        # contained 1px dot was correct); citing C# ids turns localization into selection from the
+        # measured set, so the substrate owns geometry. Overrides the VLM's own (mislocated) bbox.
+        cov = (e.get("covers") if isinstance(e, dict) else None)
+        cov_boxes = []
+        for cid in (cov if isinstance(cov, (list, tuple)) else ([cov] if cov is not None else [])):
+            try:
+                k = int(str(cid).strip().lstrip("Cc").strip())
+            except Exception:
+                continue
+            if k in cid_bbox:
+                cov_boxes.append(cid_bbox[k])
+        from_cover = bool(cov_boxes)
+        if from_cover:
+            bb = [min(b[0] for b in cov_boxes), min(b[1] for b in cov_boxes),
+                  max(b[2] for b in cov_boxes), max(b[3] for b in cov_boxes)]
         if not (isinstance(bb, (list, tuple)) and len(bb) == 4):
             return
         try:
             r0, c0, r1, c1 = (float(x) for x in bb)
         except Exception:
             return
-        if _remap is not None:                       # render-pixel bbox -> tick grid (see above)
+        if _remap is not None and not from_cover:    # render-pixel bbox -> tick grid (see above)
             r0, c0, r1, c1 = _remap((r0, c0, r1, c1))
         r0, c0, r1, c1 = (int(round(v)) for v in (r0, c0, r1, c1))
         if r1 < r0:
@@ -831,8 +894,30 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
                     * max(0, min(c1, bc1) - max(c0, bc0))) > 0:
                 return True
         return False
-    missed = [b for b in cands if not _covered(b)]
-    if missed and img.exists():
+    missed_all = [b for b in cands if not _covered(b)]
+    # NOISE-GATE (by SIZE, not count): escalation recovers genuinely-dropped OBJECTS, not
+    # over-segmentation specks. A high missed COUNT does NOT mean noise -- on a clean frame the
+    # VLM routinely mislocates EVERY real object (all cands "missed") and escalation is what
+    # recovers them. The real over-segmentation signal is SIZE: a noisy frame yields many 1-2px
+    # specks (corner/white pixels) that, if chased, make the VLM box dozens of phantoms (the
+    # 60-entity / grounding-0.16 failure). So escalate ONLY for missed cands of real-object size;
+    # ignore tiny specks (a real 1px MARK is caught by the initial identify, which sees it ON its
+    # object). Env: COS_PERC_ESCALATE_MIN_CELLS.
+    _MINC = int(os.environ.get("COS_PERC_ESCALATE_MIN_CELLS", "3") or 3)
+    _big_cands = [b for b in cands if b["cells"] >= _MINC]
+
+    def _adj_big(b):                              # a real MARK sits ON/touching a real object;
+        br0, bc0, br1, bc1 = b["bbox"]           # noise specks are isolated -> keep marks, drop noise
+        for o in _big_cands:
+            r0, c0, r1, c1 = o["bbox"]
+            if br0 <= r1 + 1 and r0 <= br1 + 1 and bc0 <= c1 + 1 and c0 <= bc1 + 1:
+                return True
+        return False
+    missed = [b for b in missed_all if b["cells"] >= _MINC or _adj_big(b)]
+    if missed_all and not missed:
+        print(f"[perception] completeness escalation SKIPPED: {len(missed_all)} missed are all "
+              f"<{_MINC}px specks (over-segmentation noise, not real objects)", flush=True)
+    if missed and img.exists() and (_PBUDGET <= 0 or _pcalls < _PBUDGET):
         lst = "\n".join(
             f"  object {i}: colour {b['color']}, bbox(row0,col0,row1,col1) {b['bbox']}, "
             f"{b['cells']} px" for i, b in enumerate(missed))
@@ -845,6 +930,7 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
         try:
             n0 = len(entities)
             add = _json_obj(_qwen(PERC_SYS, ru, str(img), tier="deep"))
+            _pcalls += 1
             for e in (add.get("entities") or []) if add else []:
                 _emit(e, dedup=True)
             if len(entities) > n0:
@@ -922,7 +1008,8 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
     # + measures here -- the VLM owns which objects exist.
     _SOFT, _HARD, _it = 3, 6, 0
     _vlm_rels = []                              # the VLM AUTHORS the pairs (any type)
-    while entities and raw and img.exists() and _it < _HARD:
+    while (entities and raw and img.exists() and _it < _HARD
+           and (_PBUDGET <= 0 or _pcalls < _PBUDGET)):
         overlay = _draw_review_overlay(raw, entities, reply_path.parent / "perc_review.png")
         if overlay is None:
             break
@@ -986,6 +1073,7 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
               "changing>, \"need_more_passes\": <true ONLY if you still need another review after this>}.")
         try:
             rev = _json_obj(_qwen(PERC_SYS, ru, str(overlay), tier="deep")) or {}
+            _pcalls += 1
         except Exception:
             break
         if rev.get("relationships"):

@@ -189,6 +189,11 @@ def build() -> dict:
             # game) so the active cuts are TIME (governor) + STALL/CLAIM (quality).
             # COS_ACTION_SWEEP_MAX=3: cap the early global-action sweep (it ate ~5 turns
             # on slow ka59) so a click-primary game isn't starved under a tight budget.
+            # COS_PERC_MAX_VLM_CALLS=3 + COS_PERC_IDENTIFY_K=1: Stream A's recommended TIGHT
+            # perception profile for the time-budgeted run -- caps per-turn VLM calls at 3
+            # (identify x1 + escalation/review backstop), ~halving per-turn VLM time vs the
+            # 4-call default; validated to HOLD ka59 grounding (90 / core_recall 1.0). The
+            # over-seg noise-gate + edge-speck filter ride on their defaults (additive).
             # SMOKE / rerun-GPU check: prepend `COS_MAX_GAMES=1 COS_SESSION_BUDGET_S=1800`
             # to the env below to play ONE game -- cheaply confirms the rerun GPU fits the
             # model AND the gateway emits a parquet, before committing to the full 25-game run.
@@ -196,6 +201,7 @@ def build() -> dict:
                 MPLBACKEND=agg \\
                 COS_SESSION_BUDGET_S=28800 COS_SESSION_RESERVE_S=900 \\
                 COS_GAME_TRIAGE=1 COS_TRIAGE_MAX_TURNS=400 COS_ACTION_SWEEP_MAX=3 \\
+                COS_PERC_MAX_VLM_CALLS=3 COS_PERC_IDENTIFY_K=1 \\
                 python main.py --agent myagent
         """
     ))
