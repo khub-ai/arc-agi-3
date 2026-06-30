@@ -11,10 +11,10 @@ logic. Everything else mirrors the official starter.
 
 1. `cos-code` dataset: build the slice (`cd ..; python build_package.py` →
    `dist/cos-code`) and upload it as a private Kaggle Dataset named `cos-code`.
-2. Model: attach **Qwen3-VL-8B-Instruct** (`qwen-lm/qwen-3-vl`,
-   `transformers/8b-instruct` variation). It fits the 2× T4 in fp16 — no quantization.
+2. Model: attach **Qwen3-VL-32B-Instruct** (`qwen-lm/qwen-3-vl`,
+   `transformers/32b-instruct` variation). It fits the RTX PRO 6000 (Blackwell, 96 GB) in bf16 — no quantization.
 3. Edit `notebooks/kernel-metadata.json`: replace `REPLACE_WITH_YOUR_USERNAME`
-   (in `id` and the `cos-code` dataset source) and `REPLACE_WITH_QWEN3_VL_8B_MODEL_SLUG`.
+   (in `id` and the `cos-code` dataset source) and `REPLACE_WITH_QWEN3_VL_32B_MODEL_SLUG`.
 4. Kaggle CLI token at `.kaggle/access_token` (one line, from kaggle.com/settings).
 
 ## Build + submit
@@ -39,6 +39,7 @@ python run_framework_offline.py ls20   # drives CosAgent through Agent.main(), o
 
 ## Accelerator
 
-Set `ACCELERATOR` at the top of `scripts/build_notebook.py` (`t4` = T4×2, the
-default; `rtx6000` = 24 GB single; `p100`; `cpu`). The serve cell loads the model
+The GPU is pinned in `notebooks/kernel-metadata.json` via
+`"machine_shape": "NvidiaRtxPro6000"` (RTX PRO 6000, Blackwell, 96 GB) — not the
+`ACCELERATOR` variable in `scripts/build_notebook.py`. The serve cell loads the model
 with transformers (`device_map="auto"` across whatever GPUs are present).

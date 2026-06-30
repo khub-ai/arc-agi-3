@@ -206,10 +206,18 @@ class ClaimStore:
                 and self._active_for(c, level_signature)]
 
     def rank(self, level_signature=None) -> list:
-        """Open (level-active) claims by descending value-of-information;
-        un-probed first on ties."""
+        """Open (level-active) claims by descending value-of-information, with
+        DIMINISHING RETURNS per repeated probe: each probe that did NOT resolve the
+        claim lowers its expected remaining information, so the effective value is
+        VoI / (1 + times_probed).  This SETS ASIDE claims that cannot be verified --
+        the VLM may over-author hypotheses (e.g. labelling many pairs 'swap'); the
+        unverifiable ones sink and stop consuming the probe frontier, instead of being
+        re-probed forever (a resolved claim leaves open_claims entirely).  No hard
+        threshold and reversible: a sunk claim can still be probed if nothing fresher
+        remains.  Un-probed (times_probed==0) keep their full value, so new claims are
+        attacked first."""
         return sorted(self.open_claims(level_signature),
-                      key=lambda c: (c.value_of_information(), c.times_probed == 0),
+                      key=lambda c: c.value_of_information() / (1 + c.times_probed),
                       reverse=True)
 
     def next_probe(self, level_signature=None) -> Optional[StoredClaim]:

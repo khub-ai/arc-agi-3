@@ -572,6 +572,27 @@ def _format_turn(turn_n: int, work_dir: Path, frame_dir: Path,
         # PER-FRAME ENTITY ANALYSIS: each sub-frame with the substrate's detected
         # entity boxes drawn on it -- the verification view (is the per-frame
         # analysis correct?), shown ABOVE the raw filmstrip for direct comparison.
+        # A filmstrip belongs to THIS run only if it is at least as fresh as that
+        # turn's frame (frames are regenerated every run).  A stale prior-run
+        # filmstrip this turn did NOT regenerate is older -> omit it, so a previous
+        # run's (often a DIFFERENT game's) animation can't show through the reused
+        # work dir.  See trace_sanity.check_referenced_images + test_trace_sanity.
+        def _film_fresh(p):
+            # Reference RUN START = earliest prompt.md across the turn dirs (this run
+            # rewrites every turn's prompt).  A prior-run leftover filmstrip (this turn
+            # produced no animation, so the reused dir kept the old one) is older than
+            # run start by a whole run gap -> omit it.  This run's OWN filmstrips are
+            # all written after run start -> kept.  (Run-level, not per-turn: a turn's
+            # prompt and its filmstrip are written moments apart, so a per-turn compare
+            # false-drops; and play-time filmstrips are older than render-time views/,
+            # so don't compare to those either.)
+            try:
+                _starts = [q.stat().st_mtime for q in work_dir.glob("turn_*/prompt.md")]
+                if not _starts:
+                    return True                       # can't measure -> don't hide
+                return Path(str(p)).stat().st_mtime >= min(_starts) - 120
+            except Exception:
+                return True
         ea = delta.get("animation_entities_filmstrip")
         if not ea:
             # Robustness: the field may not have persisted, but the PNG is the
@@ -580,7 +601,7 @@ def _format_turn(turn_n: int, work_dir: Path, frame_dir: Path,
             _cand = work_dir / f"turn_{turn_n + 1:03d}" / "animation_entities_filmstrip.png"
             if _cand.exists():
                 ea = str(_cand)
-        if ea:
+        if ea and _film_fresh(ea):
             _eas = str(ea).replace("\\", "/")
             if not _eas.startswith("file:"):
                 _eas = "file:///" + _eas.lstrip("/")
@@ -592,7 +613,7 @@ def _format_turn(turn_n: int, work_dir: Path, frame_dir: Path,
                 f'<img src="{_eas}" alt="per-frame entity analysis" loading="lazy"></div>'
             )
         fs = delta.get("animation_filmstrip")
-        if fs:
+        if fs and _film_fresh(fs):
             _src = str(fs).replace("\\", "/")
             if not _src.startswith("file:"):
                 _src = "file:///" + _src.lstrip("/")
@@ -679,6 +700,7 @@ def _format_relationship_row(r: dict) -> str:
         f'<tr><td>{_esc(r["from_name"])}</td>'
         f'<td><b>{_esc(r["relation"])}</b></td>'
         f'<td>{_esc(r["to_name"])}</td>'
+        f'<td>{_esc(str(r.get("evidence", "") or ""))}</td>'
         f'<td>{r["confidence"]:.2f}</td>'
         f'<td>×{r["times_observed"]}</td></tr>'
     )
@@ -1451,10 +1473,10 @@ def render(work_dir: Path, frame_dir: Path) -> Path:
         '<th>cell</th><th>lifespan</th></tr>'
         f'{entity_rows}'
         '</table>'
-        '<h2>Relationship inventory (current state)</h2>'
+        '<h2>Relationship inventory — compatible/complementary pairs (current state)</h2>'
         '<table class="rel-table">'
         '<tr><th>from</th><th>relation</th><th>to</th>'
-        '<th>confidence</th><th>times</th></tr>'
+        '<th>detail</th><th>confidence</th><th>times</th></tr>'
         f'{rel_rows}'
         '</table>'
         '</body></html>'

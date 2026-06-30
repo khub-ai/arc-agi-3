@@ -561,3 +561,25 @@ def directive_for_entities(entities, mea: Optional["MeansEnds"] = None) -> Optio
         return None
     return (mea or MeansEnds()).directive(mover, goal, mover.get("name", "mover"),
                                           goal.get("name", "goal"))
+
+
+def directive_for_correspondences(entities, pairs, mea: Optional["MeansEnds"] = None) -> Optional[str]:
+    """STRUCTURE MAPPING: per-CORRESPONDENCE difference-reduction directives for the VLM's
+    EXPLICIT source<->target match pairs (e.g. each tile to its goal row), instead of the
+    single auto-picked mover/goal in ``directive_for_entities``.  Reduces EACH named
+    correspondence (position/size/orientation/colour) so the actor knows which source to
+    move/transform onto which target.  ``pairs`` is a list of (source_name, target_name).
+    Returns a combined directive, or ``None`` if no pair resolves to two known entities."""
+    by_name = {e.get("name"): e for e in (entities or []) if e.get("name")}
+    m = mea or MeansEnds()
+    blocks = []
+    for a, b in (pairs or []):
+        src, tgt = by_name.get(a), by_name.get(b)
+        if src and tgt and src is not tgt:
+            d = m.directive(src, tgt, a, b)
+            if d:
+                blocks.append(d)
+    if not blocks:
+        return None
+    return ("[STRUCTURE MAPPING] make each SOURCE match its TARGET -- reduce every "
+            "correspondence's differences:\n" + "\n".join(blocks))

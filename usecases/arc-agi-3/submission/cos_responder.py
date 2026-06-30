@@ -43,6 +43,53 @@ DEEP_MODEL = os.environ.get("COS_DEEP_VLM_MODEL", MODEL)
 
 _cost = {"calls": 0, "in": 0, "out": 0, "s": 0.0, "usd": 0.0}
 _last_perception = {"entities": [], "game_type": "", "game_purpose": ""}
+# SUBSTRATE-TRACKED STABLE IDS: persistent identity for measured components, matched across
+# frames by colour + nearest position (threshold-free).  Each item carries the last VLM label
+# so the same physical region keeps its name even when the VLM would otherwise re-name it --
+# robust THROUGH scene change (a vanished region drops, a new one gets a fresh id).
+_component_tracker = {"next_id": 0, "items": []}     # items: {id,color,center,bbox,label}
+
+
+def _track_components(cands):
+    """Assign stable ids to this frame's components by matching to the prior frame: within a
+    colour, each current component takes its NEAREST unused prior component (greedy, no tuned
+    distance threshold).  Matched -> carry id + prior label; unmatched -> new id.  Updates the
+    tracker to the current frame and returns the per-cand tracking records (aligned to cands)."""
+    prior = _component_tracker["items"]
+    used, out = set(), []
+    for b in cands:
+        col = b.get("color") or ""
+        bb = b["bbox"]; ctr = ((bb[0] + bb[2]) / 2.0, (bb[1] + bb[3]) / 2.0)
+        best, bestd = None, None
+        for j, p in enumerate(prior):
+            if j in used or p["color"] != col:
+                continue
+            d = abs(p["center"][0] - ctr[0]) + abs(p["center"][1] - ctr[1])
+            if bestd is None or d < bestd:
+                best, bestd = j, d
+        if best is not None:
+            used.add(best)
+            cid, label = prior[best]["id"], prior[best]["label"]
+        else:
+            cid, label = _component_tracker["next_id"], None
+            _component_tracker["next_id"] += 1
+        out.append({"id": cid, "color": col, "center": ctr, "bbox": bb, "label": label})
+    _component_tracker["items"] = out
+    return out
+
+
+def _label_components(entities):
+    """After the VLM names this frame's objects, attach each tracked component's label from the
+    entity whose bbox contains its centre -- so next frame the SAME physical region offers that
+    label back to the VLM (stable naming via stable id)."""
+    for c in _component_tracker["items"]:
+        r, cc_ = c["center"]
+        for e in entities:
+            bb = e.get("bbox_ticks_turn1")
+            if (isinstance(bb, (list, tuple)) and len(bb) == 4
+                    and bb[0] <= r <= bb[2] and bb[1] <= cc_ <= bb[3]):
+                c["label"] = e.get("name")
+                break
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +213,31 @@ def _json_obj(txt):
 
 
 def _blobs(raw_path):
-    """Substrate-measured foreground units on the RAW 64x64 frame: accurate
-    bboxes + centroids + colours (the geometry Qwen would get wrong)."""
+    """Substrate-measured foreground units on the RAW 64x64 frame: accurate bboxes +
+    centroids + colours (the geometry the VLM gets wrong), GROUPED into coherent
+    objects via substrate_objects.extract_objects (figure-ground + per-colour grouping
+    + texture suppression) -- NOT raw connected components, which over-split a dotted
+    ring into N one-pixel dots and a line into shards, flood the candidate budget, and
+    starve the VLM of real objects (durable principle P17).  Falls back to the raw
+    components op only if extract_objects is unavailable."""
     try:
+        import numpy as np
+        from PIL import Image
+        import substrate_objects as _so
+        a = np.array(Image.open(raw_path).convert("RGB"))
+        s = max(1, a.shape[0] // 64)
+        g = a[s // 2::s, s // 2::s][:64, :64]          # clean native 64x64 (skip grid)
+        out = []
+        for o in _so.extract_objects(g):
+            r0, c0, r1, c1 = o["bbox"]
+            out.append({"bbox": [int(r0), int(c0), int(r1), int(c1)],
+                        "center": [int(o["center"][0]), int(o["center"][1])],
+                        "cells": int(o["npix"]), "color": o["color"]})
+        if out:
+            return out
+    except Exception:
+        pass
+    try:                                               # fallback: raw components op
         r = reg.run_queries(raw_path, [{"op": "components", "id": "b",
                                         "bbox": [0, 0, 64, 64], "min_cells": 1,
                                         "max_return": 24}], "/tmp/qwenresp", n_ticks=64)
@@ -189,8 +258,13 @@ def _blobs(raw_path):
 # ---------------------------------------------------------------------------
 PERC_SYS = (
     "You are the PERCEPTION engine of a game-playing system. LOOK at the attached "
-    "grid-annotated frame (the axes are TICK coordinates, row 0 = top, col 0 = left) "
-    "and IDENTIFY every distinct game object yourself -- the player/controllable "
+    "grid-annotated frame (the axes are TICK coordinates, row 0 = top, col 0 = left). "
+    "CRITICAL COORDINATE CONTRACT: every bbox number you output MUST be a 0-63 TICK label "
+    "(the numbers printed on the grid axes). The frame is ENLARGED ~10x for visibility, but "
+    "you MUST report the SMALL tick numbers (0-63), NEVER image-pixel numbers (which reach "
+    "~1270). Every coordinate is between 0 and 63; if you wrote a number above 63 you used "
+    "pixels by mistake -- convert it to the tick label. "
+    "IDENTIFY every distinct game object yourself -- the player/controllable "
     "piece, every movable piece, targets/goals, markers/cursors, walls/barriers, and "
     "small but distinct marks (a coloured centre, a slot). CRITICAL: a piece of a "
     "different colour from its surround is its OWN object, NEVER part of the field or "
@@ -241,6 +315,158 @@ def _relation_facts(raw_path):
         return ""
 
 
+def _pair_relations(raw_path, entities):
+    """Surface the substrate's MEASURED compatible/complementary PAIRS -- identical
+    (same kind / swap-pair candidate), shape_similar, and fits (a piece whose footprint
+    fits a container/slot -- complementary) -- mapped onto the VLM's entity names, so
+    the planner + swap idiom can use them.  Detecting two compatible/complementary
+    entities is central to many ARC games; the substrate measures the geometry (facts),
+    the planner/VLM interprets the meaning (P17).  [] on any issue."""
+    try:
+        import numpy as np
+        from PIL import Image
+        import substrate_objects as so
+        import substrate_relations as sr
+        rgb = np.array(Image.open(raw_path).convert("RGB"))
+        if rgb.shape[:2] != (64, 64):           # downsample an upscaled frame (like _blobs)
+            s = max(1, rgb.shape[0] // 64)
+            rgb = rgb[s // 2::s, s // 2::s][:64, :64]
+        if rgb.shape[:2] != (64, 64):
+            return []
+        objs = so.extract_objects(rgb)          # GROUPED objects (P17), not raw fragments
+        rel = sr.find_relations(objs)
+        if not rel:
+            return []
+        by_id = {o["id"]: o for o in objs}
+
+        def name_of(oid):
+            o = by_id.get(oid)
+            if not o:
+                return None
+            cr0, cc0, cr1, cc1 = o["bbox"]
+            best, nm = 0, None
+            for e in entities:
+                r0, c0, r1, c1 = e["bbox_ticks_turn1"]
+                ov = (max(0, min(cr1, r1) - max(cr0, r0))
+                      * max(0, min(cc1, c1) - max(cc0, c0)))
+                if ov > best:
+                    best, nm = ov, e["name"]
+            return nm
+
+        out, seen = [], set()
+
+        def add(names, relation, note, ordered=False):
+            # emit PAIRWISE {from,to,relation} (the world model ingests from/to; a
+            # {between:[...]} record is silently dropped by ingest_perception).
+            # ordered=True keeps direction (fits: from=piece, to=container).
+            nm = [n for n in names if n] if ordered else sorted({n for n in names if n})
+            for i in range(len(nm)):
+                for j in range(i + 1, len(nm)):
+                    key = (nm[i], nm[j], relation)
+                    if key not in seen:
+                        seen.add(key)
+                        # 'evidence' (not 'note') -> ingest_perception stores it on the
+                        # RelationshipRecord, so the pair detail shows on the trace.
+                        out.append({"from": nm[i], "to": nm[j],
+                                    "relation": relation, "evidence": note})
+
+        for grp in rel.get("identical", []):
+            add((name_of(i) for i in grp), "identical",
+                "same shape+size -> same KIND / swap-pair candidate")
+        for s in rel.get("shape_similar", []):
+            add((name_of(s["a"]), name_of(s["b"])), "shape_similar",
+                "same shape, differing -> complementary candidate")
+        for f in rel.get("fits", []):
+            add((name_of(f["piece"]), name_of(f["container"])), "fits",
+                "the piece's footprint fits the container interior -> piece<->slot",
+                ordered=True)        # from=piece, to=container
+        return out
+    except Exception:
+        return []
+
+
+def _shape_swap_candidates(raw_path, entities):
+    """Swap-pair candidates: entity pairs that are the SAME SHAPE (silhouette match,
+    rotation/scale-invariant) but a DIFFERENT colour -- the swap-pair signature.
+    Grounded on SHAPE, not bbox size, so it does NOT repeat the size-congruence
+    mis-pairing rejected for ka59.  Crops each entity by its (VLM-authored) bbox from
+    the raw frame -- reliable, because it bypasses the full-frame extraction that merges
+    the two r11l flowers -- and reuses the tested substrate_relations shape matcher.
+    Substrate ASSIST only: it surfaces the candidate as EVIDENCE; the VLM decides whether
+    they truly swap, and a probe validates the claim."""
+    try:
+        import numpy as np
+        from PIL import Image
+        import substrate_relations as sr
+        a = np.array(Image.open(raw_path).convert("RGB"))
+        if a.shape[:2] != (64, 64):
+            s = max(1, a.shape[0] // 64)
+            a = a[s // 2::s, s // 2::s][:64, :64]
+        cols, cnts = np.unique(a.reshape(-1, 3), axis=0, return_counts=True)
+        bg = cols[cnts.argmax()]                       # frame background = most common colour
+        comps, colour = [], {}
+        for e in (entities or []):
+            bb = e.get("bbox_ticks_turn1")
+            if not bb:
+                continue
+            r0, c0, r1, c1 = [int(x) for x in bb]
+            crop = a[r0:r1 + 1, c0:c1 + 1]
+            if crop.size == 0:
+                continue
+            mask = np.any(crop != bg, axis=2)
+            if mask.sum() < 4:
+                continue
+            comps.append({"id": e["name"], "bbox": [r0, c0, r1, c1],
+                          "mask": mask, "npix": int(mask.sum())})
+            fg = crop[mask]
+            fc, fn = np.unique(fg, axis=0, return_counts=True)
+            colour[e["name"]] = tuple(int(x) for x in fc[fn.argmax()])
+        rel = sr.find_relations(comps)
+        out, seen = [], set()
+        # SWAP pieces are the same shape at the SAME scale -> use exact same-mask /
+        # same-canonical-shape groups only.  Deliberately NOT shape_similar (the graded
+        # SCALE-invariant branch): a thin border edge can resemble a small node at a
+        # different scale, which is not a swap pair.
+        groups = list(rel.get("identical", [])) + list(rel.get("same_shape", []))
+        pairs = [(g[i], g[j]) for g in groups
+                 for i in range(len(g)) for j in range(i + 1, len(g))]
+        for a_, b_ in pairs:
+            if colour.get(a_) != colour.get(b_):          # same shape, DIFFERENT colour
+                key = frozenset((a_, b_))
+                if key not in seen:
+                    seen.add(key)
+                    out.append((a_, b_))
+        return out
+    except Exception:
+        return []
+
+
+def _normalize_vlm_rels(rels, entities):
+    """The VLM AUTHORS the pairs (any type -- ball<->shell, key<->lock, swap, match,
+    ...); normalize its free-form relationships to {from,to,relation,evidence}, keeping
+    only pairs whose BOTH members are real entities.  (Pair recognition is the VLM's
+    job -- there are too many pair types for fixed substrate rules; the substrate only
+    VERIFIES geometry as evidence.)"""
+    names = {e.get("name") for e in (entities or [])}
+    out, seen = [], set()
+    for r in (rels or []):
+        if not isinstance(r, dict):
+            continue
+        bw = r.get("between")
+        if isinstance(bw, (list, tuple)) and len(bw) >= 2:
+            a, b = bw[0], bw[1]
+        else:
+            a, b = r.get("from"), r.get("to")
+        rel = str(r.get("relation") or "related").strip()
+        ev = str(r.get("note") or r.get("evidence") or "").strip()
+        if a in names and b in names and a != b:
+            key = tuple(sorted((str(a), str(b)))) + (rel,)
+            if key not in seen:
+                seen.add(key)
+                out.append({"from": a, "to": b, "relation": rel, "evidence": ev})
+    return out
+
+
 ROLE_SYS = (
     "You are the PERCEPTION engine of a game-playing system. The substrate has ALREADY "
     "MEASURED every distinct object in the frame -- exact positions, sizes, colours, and "
@@ -266,7 +492,14 @@ def handle_perception(reply_path, prompt, is_delta):
     VLM only assigns a ROLE to each. A small VLM names kinds well but cannot localize on a
     64px grid, so this plays to each side's strength and removes the omission/duplication
     that the old VLM-led path fought with recovery machinery. Falls back to the VLM-led
-    path if the substrate set is unavailable."""
+    path if the substrate set is unavailable.
+
+    DEFAULT is VLM-LED: identifying objects is intelligence (grouping fragments, ignoring
+    textures, separating objects) the substrate LACKS -- a capable VLM should lead, with
+    the substrate only GROUNDING its bboxes. Substrate-led is a CRUTCH for a VLM too weak
+    to localize (e.g. Qwen3-VL-8B on a 64px grid); opt in with COS_SUBSTRATE_LED_PERCEPTION=1."""
+    if not os.environ.get("COS_SUBSTRATE_LED_PERCEPTION"):
+        return _handle_perception_vlm_led(reply_path, prompt, is_delta)
     raw = _latest_raw()
     img = reply_path.parent / "image_grid.png"
     if not img.exists():
@@ -345,7 +578,9 @@ def handle_perception(reply_path, prompt, is_delta):
             "game_purpose": gpurpose or _last_perception["game_purpose"],
             "overall_notes": "perception: substrate-measured object set; VLM-assigned roles"}
     _last_perception.update({"entities": entities, "game_type": perc["game_type"],
-                             "game_purpose": perc["game_purpose"]})
+                             "game_purpose": perc["game_purpose"],
+                             "relationships": relationships,        # so re-emit/grounding keep the pairs
+                             "groups": perc.get("groups") or []})
     out = {"delta": {"agent_moved": True, "inferred_action": "CLICK",
                      "entities_changed": [], "summary": "see perception"},
            "perception": perc} if is_delta else perc
@@ -353,9 +588,68 @@ def handle_perception(reply_path, prompt, is_delta):
     return f"perception(substrate-led): {len(entities)} entities, type={perc['game_type'][:24]}"
 
 
+def _covered_blob(b, entities):
+    """A measured component is represented when an entity of the SAME measured colour
+    overlaps it (colour-keyed so a small piece inside a larger region's bbox is not
+    falsely 'covered')."""
+    br0, bc0, br1, bc1 = b["bbox"]
+    for e in entities:
+        if (e.get("color") or "") != (b.get("color") or ""):
+            continue
+        r0, c0, r1, c1 = e["bbox_ticks_turn1"]
+        if (max(0, min(r1, br1) - max(r0, br0))
+                * max(0, min(c1, bc1) - max(c0, bc0))) > 0:
+            return True
+    return False
+
+
+def _draw_review_overlay(raw_path, entities, out_path, up=10):
+    """Substrate DRAWS the VLM's bboxes back onto the frame (clean NEAREST upscale +
+    light tick grid + labelled red boxes) so the VLM can VISUALLY review and correct
+    them (durable principle P17, step 2).  Returns the overlay path, or None on
+    failure.  The substrate only draws + measures; the VLM decides the objects."""
+    try:
+        import numpy as np
+        from PIL import Image, ImageDraw, ImageFont
+        a = np.array(Image.open(raw_path).convert("RGB"))
+        s = max(1, a.shape[0] // 64)
+        g = a[s // 2::s, s // 2::s][:64, :64]
+        im = Image.fromarray(g, "RGB").resize((64 * up, 64 * up), Image.NEAREST).convert("RGB")
+        d = ImageDraw.Draw(im)
+        try:
+            f = ImageFont.truetype("arial.ttf", 11)
+        except Exception:
+            f = ImageFont.load_default()
+        for k in range(0, 65, 4):
+            col = (110, 110, 110) if k % 16 else (90, 90, 0)
+            d.line([(k * up, 0), (k * up, 64 * up)], fill=col)
+            d.line([(0, k * up), (64 * up, k * up)], fill=col)
+            if k % 16 == 0:
+                d.text((k * up + 1, 0), str(k), fill=(255, 255, 0), font=f)
+                d.text((0, k * up + 1), str(k), fill=(255, 255, 0), font=f)
+        for e in entities:
+            r0, c0, r1, c1 = e["bbox_ticks_turn1"]
+            d.rectangle([c0 * up, r0 * up, (c1 + 1) * up, (r1 + 1) * up], outline=(255, 0, 0))
+            d.text((c0 * up + 1, r0 * up + 1), str(e.get("name", "")), fill=(255, 0, 0), font=f)
+        im.save(out_path)
+        return out_path
+    except Exception:
+        return None
+
+
 def _handle_perception_vlm_led(reply_path, prompt, is_delta):
     raw = _latest_raw()
     cands = _blobs(raw) if raw else []          # substrate MEASUREMENTS = unreliable candidates
+    # ANCHOR-RELEASE: the driver sets PERCEPTION-RESET in the prompt when the PRIOR perception
+    # grounded at QA~0 (its boxes were too COARSE -- the QA=0 lock).  Clear the stable-id tracker
+    # so this turn re-identifies FINELY instead of inheriting the frozen coarse labels.  The
+    # authoritative coarse signal is the grounding QA (fine-component), computed driver-side.
+    if "PERCEPTION-RESET" in (prompt or ""):
+        _component_tracker["next_id"] = 0
+        _component_tracker["items"] = []
+        _last_perception.pop("entities", None)
+        print("[perception] PERCEPTION-RESET honored -> cleared stable-id anchor; re-perceiving "
+              "finely", flush=True)
     # grid-annotated frame: axis tick labels let the VLM read coordinates itself
     img = reply_path.parent / "image_grid.png"
     if not img.exists():
@@ -368,14 +662,64 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
                   "which shapes exist, which are IDENTICAL, which ENCLOSE others; trust "
                   "these for STRUCTURE, then assign meaning/roles yourself):\n" + rels)
                  if rels else "")
-    user = ("Substrate candidate regions (positions and sizes are MEASURED and reliable; "
-            "only their grouping into whole objects is not -- correct that):\n" + listing +
-            rel_block +
-            "\n\nLook at the grid-annotated frame and return the REAL game objects you SEE "
-            "(every piece/mover/goal/marker/wall; a piece on a coloured field is its OWN "
-            "object; merge fragments of one object; ADD any the substrate missed). Two "
-            "shapes the substrate marks IDENTICAL are the SAME KIND of object; if a shape "
-            "ENCLOSES a tiny mark, that mark is a cue ON that object. Output the JSON now:")
+    # VLM-FIRST identification (durable principle P17): the VLM identifies the OBJECTS
+    # from the IMAGE -- it is NOT seeded with a substrate object SET (objecthood stays the
+    # VLM's judgement).  But the substrate DOES provide its measured non-background regions
+    # as an ACCOUNTABILITY CHECKLIST: the VLM must cover every real region (merging the
+    # parts of one object, omitting only stray specks).  Measured this raises coverage of
+    # the substrate components from ~0-53% to ~75% AND anchors the VLM's tick coordinates
+    # to exact pixel facts -- the substrate measures, the VLM still judges what is an object.
+    # SUBSTRATE-TRACKED STABLE IDS + accountability + temporal anchoring, unified: the
+    # substrate gives each measured region a STABLE id tracked across turns (matched by
+    # colour + nearest position) AND the label the VLM gave that physical region last turn.
+    # The VLM must account for every region and REUSE the shown label -- so identity is
+    # robust THROUGH scene change (a vanished region drops, a new one gets a fresh id),
+    # without relying on the VLM to keep names stable by instruction.
+    if not is_delta:                              # level start -> fresh tracking
+        _component_tracker["next_id"] = 0
+        _component_tracker["items"] = []
+    tracked = _track_components(cands)
+
+    def _cl(t):                                   # neutral per-region listing (colour is reported as a
+        lab = f" (last labelled '{t['label']}')" if t.get("label") else ""   # measurement, never a key)
+        return f"C{t['id']} bbox {t['bbox']} colour {t['color']}{lab}"
+    checklist = "; ".join(_cl(t) for t in tracked)
+    accountability = (("\n\nThe substrate MEASURED these non-background regions, each with a STABLE id "
+                       "(C#) tracked across turns -- ACCOUNT FOR EVERY ONE: cover it inside an object "
+                       "(MERGE the regions that are parts of one object into that object's bbox), or "
+                       "omit ONLY a truly isolated 1-2px speck. A region that sits ON, BETWEEN, or right "
+                       "NEXT TO larger objects -- ESPECIALLY when several such regions RECUR -- is often "
+                       "a STRUCTURAL MARKER (it can encode how the objects GROUP or PAIR, regardless of "
+                       "its colour or shape): box EACH as its OWN SEPARATE entity, do NOT merge it into "
+                       "an object it is attached to, and NEVER omit it as noise. For a region shown as "
+                       "(last labelled 'X'), REUSE that exact name X for the object containing it -- "
+                       "keeping names STABLE across turns is REQUIRED (downstream goals reference them); "
+                       f"invent a name only for a region with no prior label. Measured regions ({len(cands)}): "
+                       + checklist) if cands else "")
+    # COORD-ADOPTION (weak-localizer assist, e.g. Qwen): a weak localizer recognizes object KINDS
+    # but CONFABULATES coordinates. KEY: this clause is ADDITIVE inside the VLM's own identify-the-
+    # objects frame -- it does NOT replace it with "just group the substrate's components" (that
+    # variant is brittle: it collapsed to 0 on over-segmented scenes, e.g. bp35 with 103 substrate
+    # components). A/B on OpenRouter Qwen3-VL-32B (cos_responder prompt vs +adopt vs group-only):
+    # +adopt BEAT the gemma-tuned prompt at EVERY region count tested -- ka59(11) 59->63, r11l(13)
+    # 62->75, sk48(26) 32->89, bp35(103) 33->29(noise). So the clause is safe across counts; the
+    # ceiling is just conservatism on UNTESTED extreme over-segmentation (>30), where the measured
+    # list is noise anyway. No-op for a strong localizer (its coords already match). Disablable via
+    # COS_COORD_ADOPT_ASSIST=0.
+    if (cands and len(cands) <= 30
+            and os.environ.get("COS_COORD_ADOPT_ASSIST", "1") not in ("0", "false", "False")):
+        accountability += ("\nThese measured bboxes are EXACT pixel facts: for each object you keep, "
+                           "SET its bbox to the measured coordinates of the region(s) it covers -- "
+                           "adopt those numbers VERBATIM, do NOT invent or eyeball coordinates. Your "
+                           "job is to decide WHICH regions form one object and WHAT each is (role); "
+                           "the coordinates are already measured for you.")
+    user = ("Look at the grid-annotated frame (TICK coords; row 0 = top, col 0 = left) and identify "
+            "EVERY distinct game object you SEE -- the player/mover, every piece, goals, "
+            "markers/cursors, walls/barriers, LINES and wires, and small marks. A piece of a "
+            "different colour from its surround is its OWN object; include thin lines and tiny "
+            "marks; do not miss small ones. Give each a ROUGH bbox [row0,col0,row1,col1] read off "
+            "the grid -- the substrate will measure it EXACTLY in the next step, so approximate is "
+            "fine." + accountability + "\n\nOutput the JSON now:")
     # k=2: keep the RICHER identification (more real objects seen)
     obj = None
     for _ in range(2):
@@ -387,14 +731,52 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
     used = {}
     entities = []
 
+    # PIXEL->TICK REMAP (Qwen-class localizers): a weak localizer reports bboxes in the grid-annotated
+    # render's PIXEL space (0..render_width, with the playfield INSET by the axis-label margin) and
+    # IGNORES the tick-coord instruction -- so the *_ticks fields hold PIXELS and EVERY downstream tick
+    # op silently fails (grounding containment 0/N, colour overlap empty, click delivery clamped to the
+    # corner). The prompt-level coord-adopt clause above can't fix it (the model won't follow it). Detect
+    # it (any VLM coord exceeds the tick grid) and remap by ALIGNING the VLM's overall bbox EXTENT to the
+    # substrate's measured-component extent -- this recovers BOTH the scale AND the label-margin offset
+    # with no render geometry, self-calibrating per frame. No-op for a strong localizer (coords already
+    # tick-space) and when there are too few anchors to trust. Disablable via COS_PIXEL_TICK_REMAP=0.
+    _NT = 64
+    _remap = None
+    if os.environ.get("COS_PIXEL_TICK_REMAP", "1") not in ("0", "false", "False"):
+        try:
+            _vb = [e.get("bbox") for e in (obj.get("entities") or [])
+                   if isinstance(e.get("bbox"), (list, tuple)) and len(e.get("bbox")) == 4]
+            _flat = [float(v) for b in _vb for v in b]
+            # arm only when coords are CLEARLY render-pixel (>> the tick grid), so a strong
+            # localizer that emits a slightly-out tick value (e.g. 65) is never wrongly remapped.
+            if _flat and max(_flat) > 2 * _NT and len(_vb) >= 2 and len(cands) >= 2:
+                vr0 = min(float(b[0]) for b in _vb); vc0 = min(float(b[1]) for b in _vb)
+                vr1 = max(float(b[2]) for b in _vb); vc1 = max(float(b[3]) for b in _vb)
+                mr0 = min(b["bbox"][0] for b in cands); mc0 = min(b["bbox"][1] for b in cands)
+                mr1 = max(b["bbox"][2] for b in cands); mc1 = max(b["bbox"][3] for b in cands)
+                sr = (mr1 - mr0) / ((vr1 - vr0) or 1.0); sc = (mc1 - mc0) / ((vc1 - vc0) or 1.0)
+
+                def _remap(box):
+                    r0, c0, r1, c1 = (float(v) for v in box)
+                    return [mr0 + (r0 - vr0) * sr, mc0 + (c0 - vc0) * sc,
+                            mr0 + (r1 - vr0) * sr, mc0 + (c1 - vc0) * sc]
+                print(f"[perception] pixel->tick remap ARMED (VLM reports pixels): extent "
+                      f"rows[{vr0:.0f}..{vr1:.0f}] cols[{vc0:.0f}..{vc1:.0f}] -> measured "
+                      f"rows[{mr0}..{mr1}] cols[{mc0}..{mc1}], scale {sr:.3f},{sc:.3f}", flush=True)
+        except Exception:
+            _remap = None
+
     def _emit(e, dedup=False):
         bb = e.get("bbox") if isinstance(e, dict) else None
         if not (isinstance(bb, (list, tuple)) and len(bb) == 4):
             return
         try:
-            r0, c0, r1, c1 = (int(round(float(x))) for x in bb)
+            r0, c0, r1, c1 = (float(x) for x in bb)
         except Exception:
             return
+        if _remap is not None:                       # render-pixel bbox -> tick grid (see above)
+            r0, c0, r1, c1 = _remap((r0, c0, r1, c1))
+        r0, c0, r1, c1 = (int(round(v)) for v in (r0, c0, r1, c1))
         if r1 < r0:
             r0, r1 = r1, r0
         if c1 < c0:
@@ -532,13 +914,182 @@ def _handle_perception_vlm_led(reply_path, prompt, is_delta):
         print(f"[perception] dropped same-colour object recovered at {bb} "
               f"(colour {b.get('color')}) -- VLM labelled a same-colour piece but "
               f"merged this DISTINCT one away; role left OPEN for probing", flush=True)
-    perc = {"entities": entities, "groups": [], "relationships": [],
+    # ITERATIVE VISUAL-REVIEW LOOP (durable principle P17): the substrate DRAWS the
+    # VLM's bboxes on the frame + lists exact measured coords; the VLM REVIEWS the
+    # overlay against the image and corrects (fix bbox / merge / split / add missed /
+    # drop phantom); loop until the VLM is satisfied.  Soft cap 3 passes; the VLM may
+    # PUSH for more (need_more_passes) up to a hard cap of 6.  The substrate only draws
+    # + measures here -- the VLM owns which objects exist.
+    _SOFT, _HARD, _it = 3, 6, 0
+    _vlm_rels = []                              # the VLM AUTHORS the pairs (any type)
+    while entities and raw and img.exists() and _it < _HARD:
+        overlay = _draw_review_overlay(raw, entities, reply_path.parent / "perc_review.png")
+        if overlay is None:
+            break
+        coords = "\n".join(f"  {e['name']}: measured bbox(r0,c0,r1,c1) {e['bbox_ticks_turn1']}"
+                           for e in entities)
+        missed = [b for b in cands if not _covered_blob(b, entities)]
+        miss = (("\nThe substrate ALSO measured these components you did NOT box (ADD any that are a "
+                 "real object -- e.g. a line/wire or a second same-colour piece): "
+                 + "; ".join(f"{b['color']}@{b['bbox']}" for b in missed)) if missed else "")
+        pairs = _pair_relations(raw, entities) if raw else []
+        pair_hint = (("\nThe substrate VERIFIED these geometric relations as EVIDENCE (you decide which "
+                      "are meaningful pairs): "
+                      + "; ".join(f"{p['relation']}({p['from']}<->{p['to']})" for p in pairs[:8])) if pairs else "")
+        swap_cands = _shape_swap_candidates(raw, entities) if raw else []
+        if swap_cands:
+            print(f"[perception] same-shape/contrasting pair candidate(s): "
+                  + "; ".join(f"{a}<->{b}" for a, b in swap_cands[:6]), flush=True)
+        _many_pairs = len(swap_cands) >= 3
+        swap_hint = (("\nSAME-SHAPE / CONTRASTING pairs -- the substrate measured these as the SAME "
+                      "shape but a DIFFERENT colour/marking: "
+                      + "; ".join(f"{a}<->{b}" for a, b in swap_cands[:8])
+                      + ".\nDISAMBIGUATE 'swap' vs 'match' by STRUCTURE (do not guess, do not default):\n"
+                        "- 'swap' = two MUTUALLY-MOVABLE peers EXCHANGE positions; it requires BOTH "
+                        "sides to be editable/movable AND an action that visibly EXCHANGES them. If one "
+                        "side is a FIXED reference (an example/legend region that does not change), it "
+                        "CANNOT be swapped -- then it is 'match'.\n"
+                        "- 'match' = make an EDITABLE element CONFORM to a REFERENCE element; a FIXED "
+                        "example region paired with a separate EDITABLE region means APPLY the reference "
+                        "to the target.\n"
+                      + ("- These pairs are MANY and PARALLEL (a repeated table). A consistent lookup "
+                         "TABLE / LEGEND to APPLY is far simpler and more likely than many independent "
+                         "swaps -- prefer 'match' UNLESS you can actually see a single action that "
+                         "EXCHANGES one pair.\n" if _many_pairs else "")
+                      + "Emit the relation the STRUCTURE supports.")
+                     if swap_cands else "")
+        _it += 1
+        ru = ("Attached: the frame with YOUR boxes DRAWN + labelled. The substrate's EXACT measured "
+              "coordinates:\n" + coords + miss + pair_hint + swap_hint +
+              "\n\nREVIEW your boxes against the image. Is every real object boxed, each box tight and "
+              "on the correct object? FIX any bbox, MERGE boxes that are one object, SPLIT a box that "
+              "covers two, ADD a missed object, DROP a phantom.\n"
+              "Then IDENTIFY every RELATED PAIR you see and label each with the RELATION TYPE that fits "
+              "(put ONE of these words in 'relation'):\n"
+              "- 'connector': A and B joined by a LINE/BAR/BRIDGE = a defined association (often a LEGEND "
+              "entry binding A->B).\n"
+              "- 'fits' / 'contains': A fits into or is enclosed by B (slot, shell, ring, lock, container).\n"
+              "- 'match': make an EDITABLE A conform to a REFERENCE B (apply a legend/template).\n"
+              "- 'swap': two MUTUALLY-MOVABLE peers EXCHANGE positions.\n"
+              "- 'mirror': A and B are mirror / symmetric twins.\n"
+              "- 'reach': A is a controllable MOVER and B is its GOAL/target (NOT a swap).\n"
+              "- 'gate': A is a conditional PASSAGE / PORTAL for B.\n"
+              "- 'identical': same shape AND colour (duplicates).\n"
+              "Disambiguate same-shape/contrasting by STRUCTURE (above): 'swap' ONLY for mutually-movable "
+              "peers an action EXCHANGES; 'match' when one side is a FIXED reference or many parallel pairs "
+              "form a table/legend to APPLY; a mover and its goal are 'reach', not swap. "
+              "Use the substrate's verified relations + the same-shape/contrasting pairs above as "
+              "EVIDENCE, but rely on YOUR visual understanding to choose the pair, the relation, and what "
+              "it MEANS (e.g. 'put the ball in the shell to win'). Return the FULL corrected "
+              "list as {\"entities\":[{name,role,bbox,appearance}], "
+              "\"relationships\":[{between:[a,b],relation,note}], \"satisfied\": <true iff nothing needs "
+              "changing>, \"need_more_passes\": <true ONLY if you still need another review after this>}.")
+        try:
+            rev = _json_obj(_qwen(PERC_SYS, ru, str(overlay), tier="deep")) or {}
+        except Exception:
+            break
+        if rev.get("relationships"):
+            _vlm_rels = rev["relationships"]   # keep the latest pass's pairs (VLM-authored)
+        new = [e for e in (rev.get("entities") or []) if isinstance(e, dict) and e.get("bbox")]
+        if new:
+            entities = []
+            used = {}
+            for e in new:
+                _emit(e)
+        sat, push = bool(rev.get("satisfied")), bool(rev.get("need_more_passes"))
+        if sat and not push:
+            print(f"[perception] review loop: VLM satisfied after {_it} pass(es), "
+                  f"{len(entities)} entities", flush=True)
+            break
+        if _it >= _SOFT and not push:
+            print(f"[perception] review loop: soft cap {_SOFT} reached, {len(entities)} entities",
+                  flush=True)
+            break
+        if push and _it >= _SOFT:
+            print(f"[perception] review loop: VLM pushed for pass {_it + 1} (> soft cap {_SOFT})",
+                  flush=True)
+
+    # RECOVER structural sub-markers the VLM MERGED.  GAME-AGNOSTIC, keyed only on RELATIONAL
+    # signals -- never on colour or shape (those carry no fixed meaning across games):
+    #   1. ADJACENCY -- the component sits ON / BETWEEN / right NEXT TO a recognized entity
+    #      (its centre is within a couple ticks of some entity's bbox), so it is attached to
+    #      something that matters, not a stray speck floating in empty space.
+    #   2. REPETITION -- two or more such attached components recur (a regular pattern is
+    #      strong structural evidence, e.g. tr87's gray pairing-bars / tile value-marks).
+    #   3. NOT-THE-OBJECT -- it is not itself a boxed object: within each entity the LARGEST
+    #      measured component inside it IS that object (threshold-free); the rest are markers.
+    # Measurement, not meaning -- the role is a low-confidence guess for the VLM/downstream.
+    def _area(_t):
+        _b = _t["bbox"]
+        return (_b[2] - _b[0] + 1) * (_b[3] - _b[1] + 1)
+
+    def _adjacent(_cb, _eb):                      # bboxes OVERLAP or TOUCH (neighbouring cells) --
+        return (_cb[0] <= _eb[2] + 1 and _eb[0] <= _cb[2] + 1   # geometric adjacency, no tuned margin
+                and _cb[1] <= _eb[3] + 1 and _eb[1] <= _cb[3] + 1)
+    _ent_bb = [e["bbox_ticks_turn1"] for e in entities
+               if isinstance(e.get("bbox_ticks_turn1"), (list, tuple)) and len(e["bbox_ticks_turn1"]) == 4]
+    _represented = set()                          # the LARGEST component in an entity IS that object
+    for _eb in _ent_bb:
+        _inside = [t for t in tracked if _eb[0] <= t["center"][0] <= _eb[2]
+                   and _eb[1] <= t["center"][1] <= _eb[3]]
+        if _inside:
+            _represented.add(id(max(_inside, key=_area)))
+    def _inside_any(_ct):                         # centre falls inside some entity's bbox
+        return any(_eb[0] <= _ct[0] <= _eb[2] and _eb[1] <= _ct[1] <= _eb[3] for _eb in _ent_bb)
+    # Recover only CONNECTORS -- markers that sit BETWEEN/BESIDE objects (touching an entity but
+    # whose centre is NOT inside any entity), e.g. the bars linking tiles.  A marker whose centre
+    # is INSIDE an object is that object's own content (a glyph/value already carried by the
+    # object's crop) -- recovering it as a separate entity floods the inventory and creates
+    # overlap-conflicts that degrade grounding.  Between-vs-inside is structural, not colour/shape.
+    _attached = [t for t in tracked if id(t) not in _represented and not _inside_any(t["center"])
+                 and any(_adjacent(t["bbox"], _eb) for _eb in _ent_bb)]
+    if len(_attached) >= 2:                       # REPETITION + ADJACENCY (between objects) -> connectors
+        for _t in _attached:
+            _bb, _ct = _t["bbox"], _t["center"]
+            used["marker"] = used.get("marker", 0) + 1
+            entities.append({"name": f"marker_{used['marker']}",
+                             "bbox_ticks_turn1": [int(x) for x in _bb],
+                             "center_ticks": [round(_ct[0]), round(_ct[1])],
+                             "role_hypothesis": "recurring marker adjacent to objects (grouping/structure clue)",
+                             "confidence": "low", "color": _t["color"], "needs_disambiguation": True})
+            print(f"[perception] recovered marker at {_bb} (adjacent to an entity, {len(_attached)} "
+                  f"recur) -- VLM merged it; structural clue (colour/shape not used)", flush=True)
+
+    # Pairs are VLM-AUTHORED (it identifies compatible/complementary pairs of any type);
+    # the substrate is only a fallback/assist when the VLM names none (P17).
+    relationships = _normalize_vlm_rels(_vlm_rels, entities)
+    _src = "VLM"
+    if not relationships and raw:
+        relationships = _pair_relations(raw, entities)
+        _src = "substrate-fallback"
+    if relationships:
+        print(f"[perception] {len(relationships)} compatible/complementary pair(s) [{_src}]: "
+              + "; ".join(f"{r['relation']}({r['from']}<->{r['to']})" for r in relationships[:6]), flush=True)
+    perc = {"entities": entities, "groups": [], "relationships": relationships,
             "grid_inference": {"is_grid_based": False}, "symbolic_state": {},
             "game_type": obj.get("game_type", "") or _last_perception["game_type"],
             "game_purpose": obj.get("game_purpose", "") or _last_perception["game_purpose"],
-            "overall_notes": "perception: VLM-identified entities (substrate refines geometry)"}
-    _last_perception.update({"entities": entities, "game_type": perc["game_type"],
-                             "game_purpose": perc["game_purpose"]})
+            "overall_notes": "perception: VLM-driven identification, substrate-assisted "
+                             "iterative review (P17); relationships = measured "
+                             "compatible/complementary pairs"}
+    _label_components(entities)                 # carry each region's name to the next frame (stable ids)
+    # ANCHOR-RELEASE on a COARSE perception: if the VLM boxed FAR FEWER entities than the
+    # substrate measured components (under-segmented -- the QA=0 coarse-lock seen on tr87, where
+    # 16 super-boxes spanned 63 components), do NOT make this the anchor.  Keep the prior (finer)
+    # inventory so the NEXT turn anchors to it and re-perceives finely, instead of temporal
+    # anchoring freezing the coarse view.  Threshold is derived (boxing < half the measured
+    # components = clear under-coverage), not tuned to a game; only fires on a delta with a
+    # finer prior to fall back to.
+    _coarse = (bool(raw) and is_delta and (_last_perception.get("entities"))
+               and len(cands) > 8 and len(cands) >= 2 * max(1, len(entities)))
+    if _coarse:
+        print(f"[perception] COARSE view ({len(entities)} entities vs {len(cands)} measured "
+              f"components) -> NOT anchoring; keeping the prior finer inventory", flush=True)
+    else:
+        _last_perception.update({"entities": entities, "game_type": perc["game_type"],
+                                 "game_purpose": perc["game_purpose"],
+                                 "relationships": relationships,    # so re-emit/grounding keep the pairs
+                                 "groups": perc.get("groups") or []})
     out = {"delta": {"agent_moved": True, "inferred_action": "CLICK",
                      "entities_changed": [], "summary": "see perception"},
            "perception": perc} if is_delta else perc
@@ -681,7 +1232,9 @@ def handle_end_of_trial(reply_path, prompt):
 
 
 def _last_perception_perc():
-    return {"entities": _last_perception["entities"], "groups": [], "relationships": [],
+    return {"entities": _last_perception["entities"],
+            "groups": _last_perception.get("groups") or [],
+            "relationships": _last_perception.get("relationships") or [],
             "grid_inference": {"is_grid_based": False}, "symbolic_state": {},
             "game_type": _last_perception["game_type"],
             "game_purpose": _last_perception["game_purpose"],

@@ -77,6 +77,59 @@
       ],
       "credence": 0.4,
       "provenance": "generalized cross-game idiom (ka59 + others: two related objects click-swap; the marked block swaps into its marked hole)"
+    },
+    {
+      "id": "prior_repeated_marker_encodes_grouping",
+      "kind": "perception_relation_prior",
+      "reasoning_mode": "forward",
+      "trigger": "deliberate, REPEATED small markers (bars / lines / dots) sit ON, BETWEEN, or right NEXT TO larger objects (a designer drew them on purpose; they recur and are adjacent to recognized objects)",
+      "operator": "treat them as a STRUCTURE cue, never noise: a marker BETWEEN two objects PAIRS/GROUPS those two; a marker ON an object labels it. Build the grouping (which objects belong together) the markers imply, and let that grouping SHAPE the win hypothesis. Key on REPETITION + ADJACENCY, not the marker's colour or shape (those carry no fixed meaning).",
+      "spawns_subgoals": [
+        "build the object grouping the markers define",
+        "carry that grouping into the win hypothesis"
+      ],
+      "credence": 0.4,
+      "provenance": "generalized cross-game reasoning (tr87 gray bars pair the tiles -> the grouping is the seed of the win)"
+    },
+    {
+      "id": "prior_fixed_region_is_legend_apply_to_editable",
+      "kind": "goal_prior",
+      "reasoning_mode": "forward",
+      "trigger": "a FIXED example/reference region and a separate EDITABLE region both exist (probing reveals most tiles cannot change; only one region responds)",
+      "operator": "the fixed region is a LEGEND that DEFINES the rule (e.g. a set of input->output example pairs); the win is to REPRODUCE that rule on the EDITABLE region (structure mapping). Read the legend's pattern and apply it tile-by-tile to the editable region.",
+      "spawns_subgoals": [
+        "read the legend's rule from the fixed region",
+        "apply it to each editable tile"
+      ],
+      "credence": 0.4,
+      "provenance": "generalized structure-mapping reasoning (tr87: upper panel = legend, bottom row = editable copy)"
+    },
+    {
+      "id": "prior_prefer_simplest_win",
+      "kind": "win_ranking_prior",
+      "reasoning_mode": "forward",
+      "trigger": "ranking candidate WIN-CONDITION hypotheses, especially on early levels or when evidence is weak / hypotheses are tied",
+      "operator": "prefer the SIMPLEST rule -- fewest object-roles, a single weak relation, shortest path, and a UNIFORM rule (one rule over a set, e.g. 'match each X to its Y') beats a special-cased / multi-step rule (decode, sequence, chain). Designers make games easy, so PURSUE THE SIMPLEST PLAUSIBLE WIN FIRST and escalate to a more complex one only after the simple one is refuted. (Order, simplest first: activate-one-target; reach-one-goal; collect-all-uniform; fit-piece-in-slot; match-one-attribute; uniform-pairwise-matching; then sequence/decode/chain.)",
+      "credence": 0.45,
+      "provenance": "generalized design pragmatics (a human-facing game must be learnable; the intended rule is the simplest that fits)"
+    },
+    {
+      "id": "prior_win_must_explain_salient_cues",
+      "kind": "win_ranking_prior",
+      "reasoning_mode": "forward",
+      "trigger": "deliberate designer-drawn cues (markers, legends, connectors, highlighted regions) are present while ranking win hypotheses",
+      "operator": "prefer the win hypothesis that EXPLAINS / USES the salient cues; strongly DOWNWEIGHT any hypothesis that leaves obvious deliberate markers unused. A designer does not draw irrelevant structure, so an unexplained salient cue is evidence the hypothesis is wrong.",
+      "credence": 0.45,
+      "provenance": "generalized design pragmatics (salient cues are intentional -- the win should account for them)"
+    },
+    {
+      "id": "prior_match_shapes_invariantly",
+      "kind": "perception_relation_prior",
+      "reasoning_mode": "forward",
+      "trigger": "matching an object / glyph to a reference, key, or legend entry (deciding 'is this the same thing?')",
+      "operator": "match by SHAPE, invariant to ROTATION, SCALE, and minor COLOUR change -- humans recognize an object even rotated / scaled / recoloured. Compare silhouettes (figure-ground), not exact pixels; the same shape rotated/scaled/recoloured is the SAME object. When emitting the matched counterpart, carry the input's orientation.",
+      "credence": 0.4,
+      "provenance": "generalized perception prior (shape_identity: rot/scale/mirror/colour-invariant matching)"
     }
   ]
 }

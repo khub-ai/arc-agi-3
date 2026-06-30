@@ -451,7 +451,7 @@ and uses A to drive mechanic discovery.
       "statement": "<hypothesis, e.g. 'left panel switches are interactive'>",
       "scope": "level" | "cross",   // level = tied to THIS layout; cross = game-wide rule
       "target": ["<entity name(s) it concerns>"],
-      "probe": "<ONE discriminating action, e.g. CLICK:8,44 (exact cell), CLICK:<entity_name> (on a thing), CLICK:FLOOR (a random EMPTY cell -- say this when you mean a truly exploratory click on empty space, NOT on any entity), or ACTION6; omit if none>",
+      "probe": "<ONE discriminating action. To click a THING, ALWAYS use CLICK:<entity_name> (PREFERRED -- the substrate clicks its measured centre; never eyeball a coordinate). CLICK:FLOOR = a random EMPTY cell (only when you mean empty space, NOT any entity). CLICK:col,row = a bare cell ONLY if no entity applies, and col,row MUST be 0-63 TICK coords (the grid labels), NEVER image pixels. Or ACTION6; omit if none>",
       "cost": 1, "importance": 0.8, "credence": 0.5  // credence 0.5 = unknown
     }}
   ],
@@ -536,6 +536,24 @@ class ExploratoryDriver:
         self.world = world
         self.work_dir = Path(work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
+        # Action-effectiveness: learn which actions actually change the board in THIS game so
+        # dead actions get demoted + live ones promoted -- with the su15 narrow-range guardrail
+        # (conditional on the click TARGET; soft, sampling-gated demotion).  Informs the chooser
+        # via the strategy prompt; never hard-kills an action.
+        try:
+            import action_effectiveness as _ae
+            self._action_eff = _ae.ActionEffectiveness()
+        except Exception:
+            self._action_eff = None
+        self._last_stepped_action = None
+        self._last_click_target = None
+        self._swept_globals = set()    # global actions already early-swept (test each once)
+        self._recent_plan_kinds = []   # ring buffer for the aimlessness detector
+        self._aimless_note = None      # surfaced to the strategy chooser when churn is detected
+        self._abandoned = False        # set when competition triage gives up on this game
+        self._triage_cfg = None        # lazily loaded game_triage.from_env()
+        self._sm_changed_region = None # cumulative editable region (apply-legend pursuit)
+        self._sm_cursor_idx = None     # which editable slot the cursor is on (apply-legend)
         # Persistent, scoped, value-of-information-ranked Claim Store -- the
         # epistemic frontier that drives claim-directed probing.  Loaded from
         # the KB per game so a RE-RUN reloads what is already proven and spends
@@ -880,6 +898,10 @@ class ExploratoryDriver:
             parsed["entities"] = grounded
             parsed["grounding_qa"] = rep.get("quality")    # persisted for the trace
             parsed["_grounding_report"] = rep              # full report for the VLM gate
+            try:                                           # remember QA -> anchor-release on a coarse view
+                self._last_grounding_qa = float((rep.get("quality") or {}).get("score"))
+            except Exception:
+                self._last_grounding_qa = None
             print(f"[grounding] {_eg.quality_line(rep)}")
             # IDENTITY channel: a rotation/scale-invariant SHAPE signature per
             # entity, computed here where frame + grounded bbox are aligned, so a
@@ -962,6 +984,10 @@ class ExploratoryDriver:
             # positional reach instinct AND the transformational match_goal as difference-reducers.
             try:
                 import means_ends as _me
+                # Single auto-picked mover/goal reduction.  The CONJUNCTIVE structure-mapping
+                # plan (every VLM-authored correspondence) is surfaced in the prompt-builder
+                # where _pending_structure_map is FRESH (set by _seed_pair_claims after ingest);
+                # doing it here would read a stale/empty map (grounding runs before that).
                 _md = _me.directive_for_entities(grounded)
                 if _md:
                     self._pending_match_note = _md
@@ -1378,6 +1404,10 @@ class ExploratoryDriver:
         FACT so an action's effect is read as a logical-entity change, not a
         pixel diff.  Pure substrate CV (works for any in-loop VLM, zero model
         cost); degrades to a short note on any error."""
+        # Expose how many entity-level changes the substrate measured this step
+        # (None = could not measure) so the post-reply guard can correct an
+        # UNSUPPORTED agent_moved=true into a no-op.
+        self._last_substrate_change_count = None
         try:
             import os, sys
             import numpy as np
@@ -1498,6 +1528,8 @@ class ExploratoryDriver:
             if os.environ.get("COS_TIMING"):
                 print(f"[timing]   classify_object_deltas={time.time()-_tcl:.1f}s",
                       file=sys.stderr, flush=True)
+            self._last_substrate_change_count = (
+                len(moved) + len(recoloured) + len(appeared) + len(vanished))
 
             # A whole-scene re-render (level start, reset, menu) changes dozens of
             # entities at once; listing each is noise that floods the prompt and
@@ -1911,6 +1943,339 @@ class ExploratoryDriver:
         finally:
             self._pending_gt_agent_move = None
 
+    def _guard_unsupported_move(self, delta) -> None:
+        """False-positive counterpart to _reconcile_agent_move: an
+        ``agent_moved=true`` with NO supporting evidence -- no localizable new
+        cell, no entity appeared/disappeared/changed, AND the substrate object-
+        constancy tracker measured ZERO entity moves this step -- is
+        unsubstantiated.  Correct it to a NO-OP so a dead action (e.g. a click on
+        empty space) is never mined and PROMOTED as a working mechanic rule (the
+        ``CLICK:39,21 -> agent_moved`` credence-1.0 pathology).  Conservative:
+        fires only when ALL evidence is absent AND the substrate could measure
+        (count == 0, not None=unknown).  _reconcile_agent_move runs AFTER this and
+        re-asserts a move the agent-silhouette measure can still prove, so a small
+        (<5px) agent the entity tracker drops is never lost."""
+        if not getattr(delta, "agent_moved", False):
+            return
+        if delta.agent_new_cell is not None:
+            return
+        if (delta.entities_changed or delta.entities_appeared
+                or delta.entities_disappeared):
+            return
+        if getattr(self, "_last_substrate_change_count", None) != 0:
+            return                       # substrate saw a change, or could not measure
+        delta.agent_moved = False
+        print(f"[ground-truth] agent_moved true->false (UNSUPPORTED for "
+              f"{delta.action!r}: no new cell, no entity change, substrate measured "
+              f"0 moves) -- treating as a NO-OP so it is not mined as a rule")
+
+    def _note_stepped_action(self, final_action):
+        """Remember the action (+ click target) about to be stepped, so the NEXT perception's
+        settle-detection can attribute the resulting board change (or no-op) to it.  Click is
+        keyed as 'CLICK' with the 'x,y' target so effectiveness stays target-conditional."""
+        try:
+            fa = str(final_action)
+            if fa.upper().startswith("CLICK"):
+                self._last_stepped_action = "CLICK"
+                self._last_click_target = (fa.split(":", 1)[1].strip() if ":" in fa else None) or None
+            else:
+                self._last_stepped_action = fa
+                self._last_click_target = None
+        except Exception:
+            self._last_stepped_action = None
+            self._last_click_target = None
+
+    @staticmethod
+    def _norm_action_name(a):
+        """Normalize an action code to the tracker's key: click-likes -> 'CLICK', ACTION1-7 ->
+        'ACTIONn' (handles ints, '6', 'ACTION6')."""
+        s = str(a).upper()
+        if "CLICK" in s or s in ("6", "ACTION6"):
+            return "CLICK"
+        for n in "1234567":
+            if s in (n, "ACTION" + n):
+                return "ACTION" + n
+        return s
+
+    def _untested_global_actions(self):
+        """Available GLOBAL actions never yet issued -- the early-sweep frontier.  GLOBAL actions
+        are NOT position-dependent, so testing each once is a FAIR, su15-safe probe (the su15
+        narrow-range concern is about CLICK, which this never touches).  EXCLUDES ACTION6 (click)
+        and ACTION7 (~UNDO: a recovery action, not an editor to discover -- sweeping it would undo
+        the sweep's own effect and pollute the effectiveness record).  Optional COS_ACTION_SWEEP_MAX
+        caps how many globals to sweep, so a click-PRIMARY game isn't delayed by a long global
+        sweep under a tight competition budget (0 = unlimited, the default)."""
+        try:
+            ae = self._action_eff
+            try:
+                cap = int(os.environ.get("COS_ACTION_SWEEP_MAX", "0") or 0)
+            except Exception:
+                cap = 0
+            if cap > 0 and len(self._swept_globals) >= cap:
+                return []
+            avail = [self._norm_action_name(a) for a in (self.game.available_actions() or [])]
+            return [a for a in avail if a.startswith("ACTION") and a not in ("ACTION6", "ACTION7")
+                    and a not in (ae.stats if ae else {})
+                    and a not in self._swept_globals]
+        except Exception:
+            return []
+
+    def _route_action(self, final_action):
+        """Action-effectiveness routing at the step chokepoint.  Two su15-SAFE moves:
+        (1) EARLY SWEEP -- while GLOBAL actions are still untested, test one instead of issuing a
+            CLICK, so the live action set is known EARLY (bounds tr87's dead-click waste).  Never
+            redirects a chosen global action, never touches the click DEMOTION path -- click stays
+            on its diversity-gated process, so a narrow-range click (su15) is never starved.
+        (2) DEAD REDIRECT -- if the resolved action is PROVEN dead (priority at the dead floor;
+            an untried click target keeps a high priority and passes through), redirect to a
+            proven-live global action (rotating)."""
+        try:
+            ae = self._action_eff
+            if ae is None or final_action in (None, "NONE"):
+                return final_action
+            fa = str(final_action)
+            is_click = fa.upper().startswith("CLICK") or fa.upper() == "ACTION6"
+            # (0) ACTION-SPACE GATE: a CLICK on a game whose action_space lacks ACTION6 is REBUFFED
+            # (the SDK rejects it with a hard ValueError). NEVER issue it -- redirect to a supported
+            # action for the WHOLE game so COS stops wasting turns on click; directional games drive
+            # with their real actions. Game-agnostic; fires only when ACTION6 is genuinely absent.
+            if is_click:
+                try:
+                    avail = [self._norm_action_name(a)
+                             for a in (self.game.available_actions() or [])]
+                except Exception:
+                    avail = []
+                if avail and "CLICK" not in avail:
+                    others = [a for a in avail if a not in ("CLICK", "NONE", "ACTION7")]
+                    pick = (self._untested_global_actions() or others or [final_action])[0]
+                    print(f"[action-gate] {fa} REBUFFED: ACTION6 not in {avail} -> {pick} "
+                          f"(no-click game; not issuing CLICK)", flush=True)
+                    return pick
+            # (1) early sweep: only ever redirects a CLICK, only to an UNTESTED global action, and
+            # NEVER when click is already proven effective (a click-primary game keeps its click).
+            if is_click and ae.status("CLICK") != "effective":
+                untested = self._untested_global_actions()
+                if untested:
+                    pick = untested[0]
+                    self._swept_globals.add(pick)     # test each global once (robust to timing)
+                    print(f"[action-eff] early sweep: testing untested global {pick} before "
+                          f"issuing {fa}", flush=True)
+                    return pick
+            # (2) dead redirect
+            act = "CLICK" if is_click else fa
+            tgt = (fa.split(":", 1)[1].strip() if (act == "CLICK" and ":" in fa) else None)
+            if ae.priority(act, tgt) > ae.dead_priority:
+                return final_action                       # untried / live / under-sampled -> keep
+            live = sorted([a for a in ae.stats if ae.status(a) == "effective"
+                           and not a.upper().startswith("CLICK")],
+                          key=lambda a: -ae.priority(a))
+            if not live:
+                return final_action
+            pick = live[(getattr(self.world, "turn", 0) or 0) % len(live)]
+            print(f"[action-eff] {fa} is proven-dead -> redirecting to live action {pick}",
+                  flush=True)
+            return pick
+        except Exception:
+            return final_action
+
+    def _structure_map_pursuit(self, entities_for_actor):
+        """EXECUTOR-DRIVEN structure-map / apply-legend pursuit -- the missing PURSUIT that lets the
+        apply-legend theory COMMIT a context and drive action (instead of only being a prompt note
+        the small VLM ignores).  FEATURE-FLAGGED OFF by default (COS_STRUCTURE_MAP_PURSUIT) because
+        the region detection + edit-law need live iteration and must not affect the competition
+        submission until proven.  When enabled + structure-map correspondences exist, it detects the
+        legend / input / editable regions, computes the per-slot TARGET pattern (target_pattern +
+        glyph_read), and emits the next edit step toward an unsatisfied slot; the context commits via
+        _context_of -> it persists and cycles (invalidated on no-progress) like the other pursuits."""
+        if os.environ.get("COS_STRUCTURE_MAP_PURSUIT", "") in ("", "0", "false", "False"):
+            return None
+        corr = getattr(self, "_pending_structure_map", None) or []
+        if not corr:
+            return None
+        try:
+            plan = self._structure_map_plan(entities_for_actor, corr)
+        except Exception as e:
+            print(f"[structure-map] pursuit error: {e}", flush=True)
+            return None
+        if not plan or not plan.get("action"):
+            return None
+        from cell_actor import ActionChoice
+        return ActionChoice(action=plan["action"], rationale=plan.get("why", "apply-legend"),
+                            goal_id="structure_map:apply_legend", target_cell=plan.get("cell"),
+                            path_length=None, plan_kind="structure_map_pursuit")
+
+    def _structure_map_plan(self, entities_for_actor, corr):
+        """Region detection (FIRST positional heuristic; needs live tuning) + the target-pattern
+        executor.  Returns {action, why, cell} or None.  Logs the computed target pattern so a live
+        run shows whether the executor is reading the legend correctly."""
+        import numpy as _np
+        from PIL import Image as _Image
+        import target_pattern as _tp
+        import glyph_read as _gr
+        import structure_map_drive as _smd
+        fp = getattr(self, "_last_frame_path", None)
+        if not fp:
+            return None
+        rgb = _np.array(_Image.open(str(fp)).convert("RGB"))
+        bb = {e.get("name"): e.get("bbox") for e in (entities_for_actor or [])
+              if e.get("name") and e.get("bbox")}
+        # FIRST heuristic for the apply-legend layout: a correspondence whose BOTH endpoints sit in
+        # the FIXED upper region is a LEGEND example (input->output); the EDITABLE cells are entities
+        # in the region observed to change under actions (settle deltas); the INPUT row is the
+        # remaining structured row.  (game-agnostic by position/observed-editability, not by id.)
+        def _mid(b):
+            return ((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0)
+        legend = []
+        for a, b in corr:
+            ba, bb_ = bb.get(a), bb.get(b)
+            if ba and bb_ and _mid(ba)[0] < 32 and _mid(bb_)[0] < 32:
+                legend.append((ba, bb_))
+        editable = self._structure_map_editable_cells(bb)
+        queries = self._structure_map_input_cells(bb, editable)
+        if not (legend and queries and editable):
+            print(f"[structure-map] regions incomplete (legend={len(legend)} queries="
+                  f"{len(queries)} editable={len(editable)}) -- need live tuning", flush=True)
+            return None
+        alphabet = [p[1] for p in legend]
+        tgt = _tp.compute_targets(legend, queries, rgb)
+        target_keys = [_gr.identify_glyphs(rgb, [t["target"]], alphabet)[0] if t["target"] else None
+                       for t in tgt]
+        current_keys = _gr.identify_glyphs(rgb, editable, alphabet)
+        print(f"[structure-map] target pattern={target_keys} current={current_keys}", flush=True)
+        dec = _smd.next_step(target_keys, current_keys, getattr(self, "_sm_cursor_idx", None))
+        if dec["kind"] == "solved":
+            return None
+        # EDIT-LAW (cursor-move vs cycle) is the live-iteration piece: map the decision to the
+        # learned edit action.  Until induced, drive with the best live action so the context still
+        # commits + cycles on no-progress (gated, so safe); the precise mapping is the next step.
+        live = [a for a in (getattr(self._action_eff, "stats", {}) or {})
+                if self._action_eff and self._action_eff.status(a) == "effective"
+                and not a.upper().startswith("CLICK")]
+        if not live:
+            return None
+        act = sorted(live)[(getattr(self.world, "turn", 0) or 0) % len(live)]
+        return {"action": act, "why": f"apply-legend: drive slot {dec.get('slot')} "
+                f"({dec['kind']}) toward target {dec.get('target')}", "cell": None}
+
+    def _structure_map_editable_cells(self, bb):
+        """Editable cells = entities overlapping the region observed to CHANGE under actions
+        (cumulative settle-change bbox).  Empty until something has changed."""
+        reg = getattr(self, "_sm_changed_region", None)
+        if not reg:
+            return []
+        r0, c0, r1, c1 = reg
+        out = []
+        for nm, b in bb.items():
+            mr, mc = (b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0
+            if r0 - 1 <= mr <= r1 + 1 and c0 - 1 <= mc <= c1 + 1:
+                out.append(b)
+        return sorted(out, key=lambda b: b[1])
+
+    def _structure_map_input_cells(self, bb, editable):
+        """Input/query row = the structured row just ABOVE the editable region (first heuristic)."""
+        if not editable:
+            return []
+        etop = min(b[0] for b in editable)
+        cand = [b for b in bb.values() if b[2] < etop and b not in editable]
+        if not cand:
+            return []
+        row_r = max(b[0] for b in cand)            # the nearest row above
+        return sorted([b for b in cand if abs(b[0] - row_r) <= 3], key=lambda b: b[1])
+
+    def _check_game_triage(self) -> dict:
+        """Competition triage: should this game be ABANDONED (move on to the next)?  Opt-in via
+        COS_GAME_TRIAGE.  Inputs are existing state: turn, no-progress count, whether a game-type
+        theory is committed, and the best win-hypothesis credence (cannot even classify the game)."""
+        # WALL-CLOCK per-game deadline set by the session governor (COS_GAME_DEADLINE_EPOCH).
+        # Honored INDEPENDENT of COS_GAME_TRIAGE so the submission's hard budget always applies, and
+        # checked HERE at the top of run_one_step so we abort BEFORE starting another expensive
+        # perception turn (a prompt hard-abort, not just at the next turn boundary). inf = unset.
+        try:
+            _dl = float(os.environ.get("COS_GAME_DEADLINE_EPOCH", "") or "inf")
+            if time.time() >= _dl:
+                return {"abandon": True,
+                        "reason": "per-game wall-clock deadline reached (COS_GAME_DEADLINE_EPOCH)"}
+        except Exception:
+            pass
+        try:
+            import game_triage as _gt
+            cfg = self._triage_cfg
+            if cfg is None:
+                cfg = self._triage_cfg = _gt.from_env()
+            if not cfg.get("enabled"):
+                return {"abandon": False, "reason": "disabled"}
+            return _gt.should_abandon(
+                turns=int(getattr(self.world, "turn", 0) or 0),
+                turns_since_progress=int(getattr(self, "_no_progress_turns", 0) or 0),
+                has_committed_claim=getattr(self, "_active_context", None) is not None,
+                max_win_credence=self._max_win_credence(),
+                max_turns=cfg["max_turns"], claim_deadline=cfg["claim_deadline"],
+                stall_limit=cfg["stall_limit"], min_claim_credence=cfg["min_claim_credence"],
+                enabled=True)
+        except Exception:
+            return {"abandon": False, "reason": "triage error"}
+
+    def _note_aimlessness(self, plan_kind):
+        """Track recent pursuit-kinds and FLAG aimlessness -- grab-bag churn with no committed
+        game-type theory and no progress (memory/feedback_game_type_is_a_claim_always_have_a_goal).
+        Logs it loud (so a non-converging run is visible) + sets a strategy-prompt note. The deeper
+        repair (force-commit the top-ranked game-type claim as the active context, cycle on refute)
+        is the follow-on; this is the detector that must trigger it."""
+        try:
+            import aimlessness as _am
+            buf = self._recent_plan_kinds
+            if plan_kind:
+                buf.append(str(plan_kind))
+                del buf[:-8]                       # keep the last 8
+            v = _am.assess(buf, getattr(self, "_no_progress_turns", 0) or 0,
+                           self._win_understood(),
+                           getattr(self, "_active_context", None) is not None)
+            if v.get("aimless"):
+                self._aimless_note = (
+                    "AIMLESSNESS DETECTED: " + v["reason"] + ". You are doing disparate things with "
+                    "no committed theory. COMMIT to the SINGLE most-likely game-type / win hypothesis "
+                    "and pursue it coherently; if it is refuted, advance to the NEXT most-likely. Do "
+                    "NOT do random things -- determining the game type IS the goal.")
+                print(f"[aimless] {v['reason']} -> forcing game-type determination", flush=True)
+            else:
+                self._aimless_note = None
+        except Exception:
+            pass
+
+    def _record_action_effect(self, caused_change):
+        """Attribute this turn's persistent change (or its absence) to the last stepped action,
+        feeding the su15-safe effectiveness tracker."""
+        try:
+            if self._action_eff is not None and self._last_stepped_action is not None:
+                self._action_eff.record(self._last_stepped_action,
+                                        caused_change=bool(caused_change),
+                                        target=self._last_click_target)
+        except Exception:
+            pass
+
+    def _action_effectiveness_note(self):
+        """A game-agnostic note for the strategy chooser: which actions have CHANGED the board
+        vs been ineffective so far (target-conditional for click).  Informs, never hard-routes."""
+        try:
+            ae = self._action_eff
+            if ae is None or not ae.stats:
+                return ""
+            live = [a for a in ae.stats if ae.status(a) == "effective"]
+            dead = [a for a in ae.stats if ae.status(a) == "likely_dead"]
+            if not live and not dead:
+                return ""
+            parts = []
+            if live:
+                parts.append("ACTIONS THAT HAVE CHANGED THE BOARD (prefer these): "
+                             + ", ".join(sorted(live)))
+            if dead:
+                parts.append("ACTIONS INEFFECTIVE SO FAR across diverse attempts (deprioritize; "
+                             "for CLICK an UNTRIED target may still be worth ONE probe): "
+                             + ", ".join(sorted(dead)))
+            return "ACTION-EFFECTIVENESS (learned this game): " + " | ".join(parts)
+        except Exception:
+            return ""
+
     def stage_delta_perception(self, prev_frame: Path, curr_frame: Path,
                                 turn_n: int, last_action: str,
                                 frame_stack=None, anim_dir=None) -> Path:
@@ -1944,6 +2309,17 @@ class ExploratoryDriver:
             _entity_deltas = ((_entity_deltas or "") + "\n" + _response_facts).strip()
         _t3 = time.time()
         _animation_summary = self._substrate_animation_summary(frame_stack)
+        # ANCHOR-RELEASE: if the PRIOR perception grounded at QA~0 (its boxes were too COARSE --
+        # they spanned many measured regions, the QA=0 lock seen on tr87), signal the perception
+        # to RE-IDENTIFY finely and drop the coarse prior, so temporal anchoring stops freezing a
+        # bad view.  Authoritative coarse signal = the grounding QA (fine-component), not _blobs.
+        _qa = getattr(self, "_last_grounding_qa", None)
+        if _qa is not None and _qa <= 0.05:
+            _rst = ("PERCEPTION-RESET: the previous perception grounded at QA~0 (its boxes were too "
+                    "COARSE, each spanning many distinct regions). RE-IDENTIFY every distinct object "
+                    "FINELY this turn; do NOT reuse a coarse prior inventory; box each small region "
+                    "separately.")
+            _animation_summary = (_rst + "\n" + (_animation_summary or "")).strip()
         # ENTITY-LEVEL inter-frame motion (Layer-3/4): detect entities per
         # sub-frame and track them across the animation -> movement FACTS.  This
         # is the primary animation view; the colour-region summary is complementary.
@@ -1987,9 +2363,20 @@ class ExploratoryDriver:
                 _settle.classify_animation(frame_stack))
             if _snote:
                 _animation_summary = ("[SETTLE] " + _snote + "\n" + (_animation_summary or "")).strip()
-            if _trans.get("kind") == "state_change":
+            _changed = (_trans.get("kind") == "state_change")
+            if _changed:
                 print(f"[settle] PERSISTENT state change vs prev settled: "
                       f"{_trans['settled_change_bbox']} ({_trans['n_settled_changed']} cells)")
+                try:                               # cumulative editable region for the apply-legend pursuit
+                    _cb = _trans.get("settled_change_bbox")
+                    if _cb:
+                        _pr = getattr(self, "_sm_changed_region", None)
+                        self._sm_changed_region = list(_cb) if not _pr else [
+                            min(_pr[0], _cb[0]), min(_pr[1], _cb[1]),
+                            max(_pr[2], _cb[2]), max(_pr[3], _cb[3])]
+                except Exception:
+                    pass
+            self._record_action_effect(_changed)   # attribute to the last stepped action
             if _curr_settled is not None:
                 self._prev_settled = _curr_settled
         except Exception as _e:
@@ -2026,6 +2413,28 @@ class ExploratoryDriver:
         if _mnote:
             _animation_summary = (_mnote + "\n" + (_animation_summary or "")).strip()
             self._pending_match_note = None
+        # STRUCTURE MAPPING: VLM-authored source<->target correspondences (e.g. each tile to its
+        # goal row) -> surface the matching goal so the actor reduces each difference (conform /
+        # move / recolour), the instinct this kind of game needs.
+        # STRUCTURE MAPPING: surface the matching goal so the actor reduces each correspondence.
+        # The CONJUNCTIVE per-pair reduction was built post-ingest in _seed_pair_claims (where
+        # world.entities is populated; THIS prompt-builder runs pre-ingest, world empty).  Prefer
+        # it; fall back to a plain note from the correspondence list.
+        _mdir = getattr(self, "_pending_match_directive", None)
+        _smap = getattr(self, "_pending_structure_map", None)
+        if _mdir:
+            _animation_summary = (_mdir + "\n" + (_animation_summary or "")).strip()
+            self._pending_match_directive = None
+            self._pending_structure_map = None
+            print("[means-ends] conjunctive match-reduction plan surfaced")
+        elif _smap:
+            _pairs = "; ".join(f"{a}->{b}" for a, b in _smap[:8])
+            _snote = ("STRUCTURE MAPPING: make each SOURCE match/conform to its TARGET (reduce the "
+                      f"difference: move/transform/recolour the source): {_pairs}.")
+            _animation_summary = (_snote + "\n" + (_animation_summary or "")).strip()
+            self._pending_structure_map = None
+            print(f"[structure-map] surfaced {len(_smap)} correspondence(s) as a match goal "
+                  f"(plain note)")
         # CLOSURE: if any shape is incomplete (has a mouth), surface the close-every-mouth win goal --
         # pair each with its complement (opposite mouth + matching attribute) into a solid figure (once).
         _cnote = getattr(self, "_pending_closure_note", None)
@@ -2524,6 +2933,137 @@ class ExploratoryDriver:
         except Exception as e:
             print(f"[structural] skipped ({e})")
 
+    def _world_match_entities(self):
+        """Current world entities as {name, bbox_ticks_turn1} for means-ends binding -- the
+        SAME name namespace as world.relationships (which feeds the structure-mapping
+        correspondences), so a correspondence binds even when the raw perception re-names
+        objects.  EntityRecord exposes current_bbox(); guarded against odd entries."""
+        out = []
+        for nm, e in (getattr(getattr(self, "world", None), "entities", {}) or {}).items():
+            try:
+                bb = e.current_bbox() if hasattr(e, "current_bbox") else None
+            except Exception:
+                bb = None
+            if isinstance(bb, (list, tuple)) and len(bb) == 4:
+                out.append({"name": nm, "bbox_ticks_turn1": list(bb)})
+        return out
+
+    def _seed_pair_claims(self) -> None:
+        """Bring the perception's COMPATIBLE/COMPLEMENTARY pairs into the claim/win
+        layer (P17).  A measured 'fits' pair (a piece whose footprint fits a
+        container/slot interior) -> a WIN-CONDITION hypothesis 'place the piece in the
+        slot'.  An 'identical' pair (same shape+size) -> a MECHANIC claim 'clicking one
+        may swap/move it relative to the other'.  Priors at guessed credence, never
+        facts; idempotent.  Detecting + acting on two compatible/complementary entities
+        is central to many ARC games -- this is how the pairs reach win/mechanic/
+        strategy reasoning instead of dead-ending in the perception output."""
+        try:
+            from world_knowledge import WinConditionHypothesis
+            rels = getattr(self.world, "relationships", []) or []
+            turn = int(getattr(self.world, "turn", 0) or 0)
+            if rels:
+                print(f"[pairs] seed @t{turn}: world has {len(rels)} relationship(s)", flush=True)
+            wch = self.world.win_condition_hypotheses
+            existing = {getattr(h, "description", "") for h in (wch or [])}
+            cs = getattr(self, "_claim_store", None)
+            claims, n_win = [], 0
+            for r in rels:
+                a, b = getattr(r, "from_name", None), getattr(r, "to_name", None)
+                rel = (getattr(r, "relation", "") or "")
+                ev = (getattr(r, "evidence", "") or "")
+                if not (a and b):
+                    continue
+                # the VLM authors the pair + its TYPE (free-form); keyword-match it.
+                rl = rel.lower()
+                # CONNECTOR / LINK / BINDING: a line/bar/bridge joining A and B = a defined
+                # ASSOCIATION (a legend entry binds A->B); routed like a correspondence so the
+                # binding gets APPLIED (the tr87 gray bars were falling through to no claim).
+                _connector = any(k in rl for k in ("connect", "link", "bound", "bind", "join",
+                                                   "bridge", "tether", "wire", "associate"))
+                if any(k in rl for k in ("fit", "contain", "slot", "goal", "place", "lock",
+                                         "inside", "target", "shell", "hole", "key", "reach",
+                                         "deliver")):
+                    desc = (f"bring/place '{a}' into/onto '{b}'"
+                            + (f" -- {ev}" if ev else f" ('{rel}')"))
+                    if desc not in existing:
+                        wch.append(WinConditionHypothesis(
+                            hypothesis_id=f"pair_fit_{len(wch)}", description=desc,
+                            credence=0.4, created_at_turn=turn,
+                            notes=f"VLM-identified '{rel}' pair (piece<->slot / mover<->goal)"))
+                        existing.add(desc); n_win += 1
+                elif _connector or any(k in rl for k in ("match", "correspond", "maps", "align",
+                                       "map_to", "conform", "translate", "legend", "dictionary")):
+                    # CORRESPONDENCE / BINDING -> STRUCTURE MAPPING: apply the a->b mapping (a
+                    # connector/bar is a legend entry).  The means-ends difference-reducer makes
+                    # '{a}' match '{b}'; the probe acts on the source to drive the mapping.
+                    self._pending_structure_map = (getattr(self, "_pending_structure_map", []) or [])
+                    self._pending_structure_map.append((a, b))
+                    claims.append({
+                        "id": f"pair_match__{a}__{b}", "kind": "structure_map",
+                        "scope": "level", "target": [a, b], "plan": f"make '{a}' match '{b}'",
+                        "probe": f"CLICK:{a}",
+                        "statement": (f"'{a}' is bound/corresponds to '{b}' ('{rel}') -> apply the "
+                                      f"mapping: transform/set '{a}' to MATCH '{b}' (structure mapping)"),
+                        "importance": 0.78, "credence": 0.4, "provenance": "guessed"})
+                elif any(k in rl for k in ("mirror", "symmetr", "reflect")):
+                    # MIRROR / SYMMETRIC twins: distinct from swap -- acting on one may mirror-affect
+                    # the other (coupled control, e.g. m0r0), or the goal is to make them symmetric.
+                    claims.append({
+                        "id": f"pair_mirror__{a}__{b}", "kind": "mechanic",
+                        "scope": "level", "target": [a, b], "plan": f"CLICK:{a}", "probe": f"CLICK:{a}",
+                        "statement": (f"'{a}' and '{b}' are MIRROR/symmetric twins -> acting on one may "
+                                      f"mirror-affect the other (coupled), or make them symmetric"),
+                        "importance": 0.6, "credence": 0.35, "provenance": "guessed"})
+                elif any(k in rl for k in ("gate", "portal", "passage", "door", "teleport")):
+                    # GATE / PORTAL: a conditional passage for the other entity.
+                    claims.append({
+                        "id": f"pair_gate__{a}__{b}", "kind": "mechanic",
+                        "scope": "level", "target": [a, b], "plan": f"CLICK:{a}", "probe": f"CLICK:{a}",
+                        "statement": (f"'{a}' is a GATE/PORTAL for '{b}' -> '{b}' passes through '{a}' "
+                                      f"once the gate condition is met"),
+                        "importance": 0.6, "credence": 0.35, "provenance": "guessed"})
+                elif any(k in rl for k in ("swap", "exchange", "identical")):
+                    # SWAP: two MUTUALLY-MOVABLE peers EXCHANGE (the disambiguator keeps a fixed
+                    # reference / legend out of this bucket -> it lands in 'match' above).
+                    claims.append({
+                        "id": f"pair_swap__{a}__{b}", "kind": "mechanic",
+                        "scope": "level", "target": [a, b], "plan": f"CLICK:{a}", "probe": f"CLICK:{a}",
+                        "statement": (f"'{a}' and '{b}' are a '{rel}' pair -> clicking "
+                                      f"one may SWAP/move it relative to the other"),
+                        "importance": 0.7, "credence": 0.4, "provenance": "guessed"})
+            if cs is not None and claims:
+                new = [c for c in claims if c["id"] not in cs.claims]
+                cs.ingest(claims, turn=turn, level_signature=self._level_signature())
+                cs.save_for_game()
+                if new:
+                    _sm = [c["id"] for c in new if c.get("kind") == "structure_map"]
+                    _sw = [c["id"] for c in new if c.get("kind") == "mechanic"]
+                    if _sm:
+                        print(f"[pairs] +{len(_sm)} structure-mapping claim(s) from match/connector pairs: {_sm}")
+                    if _sw:
+                        print(f"[pairs] +{len(_sw)} mechanic claim(s) (swap/mirror/gate): {_sw}")
+            if n_win:
+                print(f"[pairs] +{n_win} win-condition hypothesis(es) from fits pairs")
+            # Build the CONJUNCTIVE match-reduction directive HERE, post-ingest, where
+            # world.entities is POPULATED -- the prompt-builder (stage_delta_perception) runs
+            # PRE-ingest where world.entities is empty, so binding there always failed (0x live).
+            # Stored for stage_delta_perception to surface next prompt.
+            _corr = getattr(self, "_pending_structure_map", None)
+            if _corr:
+                try:
+                    import means_ends as _me
+                    # Only binds correspondences whose BOTH endpoints are BOXED entities; a pair
+                    # whose endpoints are relationship-only stubs (the VLM named them but never
+                    # boxed them, e.g. grid cells) has no geometry to reduce -> stays a plain note.
+                    _d = _me.directive_for_correspondences(self._world_match_entities(), _corr)
+                    if _d:
+                        self._pending_match_directive = _d
+                        print(f"[means-ends] conjunctive match-reduction plan built (post-ingest)")
+                except Exception as _me_e:
+                    print(f"[means-ends] conjunctive build skipped ({_me_e})")
+        except Exception as e:
+            print(f"[pairs] seed skipped ({e})")
+
     def _seed_program_map_claims(self) -> None:
         """SYMBOLIC stage (program/scene): orient each geometric similar-structure
         pair by the MEASURED response facts -- the side whose members are SETTABLE
@@ -2855,11 +3395,11 @@ class ExploratoryDriver:
             turn = int(getattr(self.world, "turn", 0) or 0)
             cs.close(lp["claim_id"], "proven" if changed else "refuted", turn=turn)
             cs.save_for_game()
-            print(f"[claim] one-shot function probe '{lp['claim_id']}' RESOLVED "
-                  f"({'function observed' if changed else 'inert -- no change'}) "
+            print(f"[claim] one-shot probe '{lp['claim_id']}' RESOLVED "
+                  f"({'effect observed -> proven' if changed else 'no effect -> refuted'}) "
                   f"-> closed; will not re-probe.")
         except Exception as e:
-            print(f"[claim] function-probe resolve skipped ({e})")
+            print(f"[claim] probe resolve skipped ({e})")
 
     def _action_queue_probe(self, entities_for_actor):
         """Pop the next action from a VLM-authored DETERMINISTIC queue (loaded once
@@ -2904,6 +3444,9 @@ class ExploratoryDriver:
             mapstruct = getattr(self, "_map_claims_across_structures", None)
             if mapstruct:
                 mapstruct()                         # analogically transfer claims across similar structures
+            seedpairs = getattr(self, "_seed_pair_claims", None)
+            if seedpairs:
+                seedpairs()                         # compatible/complementary pairs -> win/mechanic hypotheses
             # scope to the CURRENT level so a persisted claim from a DIFFERENT
             # level (reloaded on a re-run) is never probed on the wrong layout.
             c = cs.next_probe(self._level_signature())
@@ -2913,10 +3456,12 @@ class ExploratoryDriver:
             if act is None:
                 return None
             cs.note_probed(c.claim_id, turn=int(getattr(self.world, "turn", 0) or 0))
-            # A function-probe is ONE-SHOT: remember it so its outcome is read +
-            # the claim CLOSED next turn (see _resolve_prev_function_probe), so an
-            # inert entity is never re-probed in a loop.
-            if str(c.claim_id).startswith("function_of_"):
+            # ONE-SHOT outcome resolution for function probes AND pair (swap/match)
+            # probes: the outcome is read next turn and the claim CLOSED -- proven on a
+            # visible change, refuted on NO effect -- so an unverifiable pair claim is
+            # actively RETIRED after one probe instead of only sinking via diminishing
+            # returns, and a working mechanic is promoted to exploitation.
+            if str(c.claim_id).startswith(("function_of_", "pair_swap__", "pair_match__")):
                 self._last_fn_probe = {"claim_id": c.claim_id, "action": c.probe}
             print(f"[claim] probing '{c.claim_id}' (VoI={c.value_of_information():.2f}, "
                   f"cost={c.cost}): {c.statement!r} -> {c.probe}")
@@ -4220,6 +4765,7 @@ class ExploratoryDriver:
         # recurring 'entity analysis is off' regression.
         final = self._vlm_inspect_grounding(final, frame_path, ls_dir)
         self.world.ingest_perception(final)
+        self._seed_pair_claims()             # seed win/mechanic hypotheses from level-start pairs
         # COUPLING-AWARE ROUTE: from the perceived scene, compute the path the
         # mover must travel to MATE into the goal (around any barrier, through its
         # gap, entering the goal's mouth) -- the 'encoding list' the program must
@@ -4680,8 +5226,35 @@ class ExploratoryDriver:
             n_frames = sum(1 for _ in dest_views.iterdir())
         else:
             n_frames = 0
+        # Remove STALE cross-run siblings (a previous trial's play_trace.html /
+        # metadata.json / turn_*.json) so an OLD GAME can't show through this
+        # canonical bookmark dir. Only delete files older than the trace we just
+        # wrote, so anything co-written this run is preserved.
+        try:
+            cutoff = dest_html.stat().st_mtime - 1
+            for sib in (list(dest.glob("turn_*.json"))
+                        + [dest / "play_trace.html", dest / "metadata.json"]):
+                if sib.exists() and sib.stat().st_mtime < cutoff:
+                    sib.unlink()
+        except Exception as e:
+            print(f"[trace-mirror] stale-sibling cleanup skipped: {e}")
         self._last_trace_mirror_ts = time.time()
         print(f"[trace-mirror] -> {dest_html} ({n_frames} frames)")
+        # AUTO-SANITY: flag obvious wrongness on the mirrored trace every render
+        # (cross-game contamination, stale prior-run filmstrips, out-of-grid clicks,
+        # bad entity bboxes, frozen game) so regressions surface immediately instead
+        # of by eye.  Loud on FAIL; never fatal.
+        try:
+            import trace_sanity as _tsan
+            _probs = _tsan.scan_trace_dir(dest)
+            _f = [p for p in _probs if p.severity == "FAIL"]
+            _w = [p for p in _probs if p.severity == "WARN"]
+            if _f or _w:
+                print(f"[trace-sanity] {len(_f)} FAIL, {len(_w)} WARN:")
+                for p in _f + _w:
+                    print(f"  {p}")
+        except Exception as e:
+            print(f"[trace-sanity] scan skipped: {e}")
 
     def _maybe_mirror_trace(self,
                               min_interval_s: float = 10.0) -> None:
@@ -5178,7 +5751,29 @@ class ExploratoryDriver:
               f"(catastrophe_actions={r.get('catastrophe_actions')}, "
               f"unskewer={r.get('unskewer_verdict')})")
 
+    def _is_whole_frame_bbox(self, bbox) -> bool:
+        """A degenerate detection: an entity whose bbox spans ~the whole frame is a
+        COLLAPSE of many objects (e.g. the VLM lumping every wall into one 'gray walls'
+        [0,0,64,64]) -- never an actionable object.  Drop it from the actor's view so
+        it can't pollute pairing/goals; good turns still detect the real segments.
+        Flagged by trace_sanity.check_entity_bboxes + test_trace_sanity."""
+        try:
+            r0, c0, r1, c1 = bbox
+            n = int(getattr(self, "n_ticks", 64) or 64)
+            return (r1 - r0) >= n - 3 and (c1 - c0) >= n - 3
+        except Exception:
+            return False
+
     def run_one_step(self) -> Optional[TurnReport]:
+        # COMPETITION TRIAGE: in a ~200-game session, give up on a hopeless game and move to the
+        # NEXT rather than letting it starve the rest.  Opt-in (COS_GAME_TRIAGE); returning None
+        # ends this game cleanly (the run loop breaks -> finalize -> bridge DONE -> next game).
+        _tri = self._check_game_triage()
+        if _tri.get("abandon"):
+            self._abandoned = True
+            print(f"[triage] ABANDON game @turn {getattr(self.world, 'turn', '?')}: "
+                  f"{_tri['reason']} -> moving on to the next game", flush=True)
+            return None
         # Consume any auto-promotion replies left from prior turns
         # before assembling the next strategy prompt — that way a
         # newly-promoted subroutine appears in the surface ASAP.
@@ -5239,6 +5834,7 @@ class ExploratoryDriver:
             }
             for r in self.world.entities.values()
             if r.current_bbox is not None
+            and not self._is_whole_frame_bbox(r.current_bbox)
         ]
         # Collapse same-physical-object aliases (the VLM renames a static target
         # across turns -> the registry accumulates N records for one hole) so the
@@ -5441,6 +6037,16 @@ class ExploratoryDriver:
             if _instr is not None:
                 choice = _instr
                 print(f"[turn {self.world.turn}] VERIFY-INSTRUCTION "
+                      f"{choice.action!r} ({choice.rationale})", flush=True)
+        # APPLY-LEGEND / STRUCTURE-MAP PURSUIT — when correspondences (a legend) + an editable
+        # region exist, drive the target-pattern executor.  Feature-flagged OFF by default; gated
+        # like the others (blind choice + one-context-at-a-time) so it never overrides a real plan.
+        if (_is_blind_choice(choice) and not yield_to_explore
+                and self._context_active_ok("structure_map")):
+            _smp = self._structure_map_pursuit(entities_for_actor)
+            if _smp is not None:
+                choice = _smp
+                print(f"[turn {self.world.turn}] STRUCTURE-MAP PURSUIT "
                       f"{choice.action!r} ({choice.rationale})", flush=True)
         # SELF-CALIBRATING MERGE PURSUIT — several same-appearance pieces (not a
         # collinear strip) + a distinct goal: the substrate chains the merges and
@@ -5675,6 +6281,27 @@ class ExploratoryDriver:
                     _sp.write_text(
                         "INSTINCTS (consult FIRST):\n" + _iblock + "\n\n"
                         + _sp.read_text(encoding="utf-8"), encoding="utf-8")
+            except Exception:
+                pass
+            # ACTION-EFFECTIVENESS: surface which actions have actually CHANGED the board vs been
+            # ineffective, so the chooser prefers live actions and stops wasting turns on a dead
+            # one (tr87: ~148 dead clicks).  su15-safe: an untried click target may still warrant
+            # one probe.  Informs the actor; never hard-routes.
+            try:
+                _sp = turn_dir / "strategy_prompt.md"
+                _aenote = self._action_effectiveness_note()
+                if _aenote and _sp.exists():
+                    _sp.write_text(_aenote + "\n\n" + _sp.read_text(encoding="utf-8"),
+                                   encoding="utf-8")
+            except Exception:
+                pass
+            # AIMLESSNESS: if churn with no committed theory was detected this turn, lead the prompt
+            # with the directive to COMMIT one game-type hypothesis (determining the type IS a goal).
+            try:
+                _sp = turn_dir / "strategy_prompt.md"
+                if getattr(self, "_aimless_note", None) and _sp.exists():
+                    _sp.write_text(self._aimless_note + "\n\n" + _sp.read_text(encoding="utf-8"),
+                                   encoding="utf-8")
             except Exception:
                 pass
             # OPERATOR MENU: when the substrate built a merge/deliver menu for this
@@ -6019,12 +6646,15 @@ class ExploratoryDriver:
         self._proc_seg_append(final_action)
         print(f"[turn {self.world.turn}] executing {final_action} "
               f"(plan={plan_kind}, goal={goal_id})")
+        self._note_aimlessness(plan_kind)
         if final_action == "NONE":
             return None
 
         # step the game
         try:
             _gs=time.time()
+            final_action = self._route_action(final_action)
+            self._note_stepped_action(final_action)
             step_result = self.game.step(final_action)
             if os.environ.get("COS_TIMING"):
                 print(f"[timing] game.step={time.time()-_gs:.1f}s", file=sys.stderr, flush=True)
@@ -6129,6 +6759,7 @@ class ExploratoryDriver:
         perception_json = self._ground_perception_geometry(
             perception_json, step_result.frame_path)
         self.world.ingest_perception(perception_json)
+        self._seed_pair_claims()             # VLM-recognized pairs -> win/mechanic hypotheses, EVERY turn
         self._refresh_bboxes_from_frame()
         self._verify_pending_operator()
         # build DeltaRecord — use the executed action, not the
@@ -6151,6 +6782,9 @@ class ExploratoryDriver:
             entities_changed=list(delta_json.get("entities_changed") or []),
             summary=delta_json.get("summary", ""),
         )
+        # FALSE-POSITIVE GUARD (runs first): an unsupported agent_moved=true (a dead
+        # click on empty space) -> no-op, so it is never mined+promoted as a rule.
+        self._guard_unsupported_move(delta)
         # GROUND-TRUTH GUARD: the picture wins -- if the pixels show the agent
         # vacated its cell but the VLM reported agent_moved=false, correct it.
         self._reconcile_agent_move(delta)
@@ -6423,6 +7057,8 @@ class ExploratoryDriver:
         # step the game
         try:
             _gs=time.time()
+            final_action = self._route_action(final_action)
+            self._note_stepped_action(final_action)
             step_result = self.game.step(final_action)
             if os.environ.get("COS_TIMING"):
                 print(f"[timing] game.step={time.time()-_gs:.1f}s", file=sys.stderr, flush=True)
@@ -6460,6 +7096,7 @@ class ExploratoryDriver:
         perception_json = self._ground_perception_geometry(
             perception_json, step_result.frame_path)
         self.world.ingest_perception(perception_json)
+        self._seed_pair_claims()             # VLM-recognized pairs -> win/mechanic hypotheses, EVERY turn
         self._refresh_bboxes_from_frame()
         self._verify_pending_operator()
         delta = DeltaRecord(
@@ -6477,6 +7114,8 @@ class ExploratoryDriver:
             entities_changed=list(delta_json.get("entities_changed") or []),
             summary=delta_json.get("summary", ""),
         )
+        # FALSE-POSITIVE GUARD (runs first): unsupported agent_moved=true -> no-op.
+        self._guard_unsupported_move(delta)
         # GROUND-TRUTH GUARD: picture wins over a wrong agent_moved=false.
         self._reconcile_agent_move(delta)
         try:
@@ -8560,6 +9199,8 @@ class ExploratoryDriver:
             return "move_law"
         if "instruction" in pk:
             return "instruction"
+        if "structure_map" in pk or "apply_legend" in pk:
+            return "structure_map"
         return None
 
     def _context_active_ok(self, ctx) -> bool:
@@ -8825,17 +9466,22 @@ class ExploratoryDriver:
             # swap pair.  Colour synonyms normalised so the block's 'black' dot and
             # the hole's 'dark' fill match.
             _SYN = {"black": "dark", "grey": "gray", "centre": "center"}
-            _MARK_VOCAB = {"dark", "white", "red", "blue", "green", "yellow",
-                           "purple", "pink", "orange", "gray", "cyan", "magenta",
-                           "brown", "gold", "teal",
-                           "dot", "center", "border", "cross", "ring", "outline",
-                           "stripe", "patch", "spot", "star", "arrow", "diamond"}
+            _BASE_COLORS = {"dark", "white", "red", "blue", "green", "yellow",
+                            "purple", "pink", "orange", "gray", "cyan", "magenta",
+                            "brown", "gold", "teal"}
+            # A relational MARK is a DISTINCTIVE feature (a dot/centre/cross/...), NOT a
+            # shared base colour.  Keying on a shared base colour ("both gray") wrongly
+            # paired a 299px platform with a socket -- the palette-invariant rule.
+            _DISTINCTIVE_MARKS = {"dot", "center", "border", "cross", "ring", "outline",
+                                  "stripe", "patch", "spot", "star", "arrow", "diamond"}
+            _TERRAIN_TAGS = {"platform", "floor", "wall", "ground", "background",
+                             "terrain", "field", "panel", "hud", "frame"}
 
             def _mark_tokens(e):
                 txt = ((e.get("appearance") or "") + " "
                        + (e.get("role_hypothesis") or "")).lower()
                 toks = {_SYN.get(t, t) for t in re.findall(r"[a-z]+", txt)}
-                return toks & _MARK_VOCAB
+                return toks & _DISTINCTIVE_MARKS
 
             cargo_cands = []
             for e in (entities_for_actor or []):
@@ -8844,6 +9490,8 @@ class ExploratoryDriver:
                 if not (bb and len(bb) >= 4):
                     continue
                 if any(w in _tags(e) for w in TARGETY):      # a slot is not its own cargo
+                    continue
+                if any(t in _tags(e) for t in _TERRAIN_TAGS):  # terrain is never a movable cargo
                     continue
                 # the controllable is normally not its own cargo -- EXCEPT in the swap
                 # idiom, where a MARKED controllable is itself a swap participant.
@@ -9522,6 +10170,19 @@ class ExploratoryDriver:
                 # piece is a no-op too (no room to move), so keep a minimum useful step.
                 self._mg_reach = max(self.n_ticks * 0.05, (getattr(self, "_mg_reach", None)
                                                            or self.n_ticks * 0.1) * 0.7)
+            # An UNCONFIRMED merge (no same-appearance pair has ever been observed to
+            # merge) that has made no progress for a few turns is most likely the WRONG
+            # mechanic for this game -- yield NOW so the next tier (claim-directed probe of
+            # the swap/match pairs) gets the turn, instead of hogging the controller for
+            # ~n_ticks/2 turns.  A CONFIRMED merge keeps the patient threshold below (it is
+            # the right mechanic, mid-chain).  _mg_stuck resets whenever a piece moves
+            # closer, so a real merge that is making progress never trips this.  The '3'
+            # mirrors the action-stall blacklist count used just below.
+            if not self._mg_confirmed and self._mg_stuck >= 3:
+                print("[merge] unconfirmed + no progress in 3 turns -> yielding "
+                      "(likely not a merge game; let claim-directed probes run)", flush=True)
+                self._mg_reset()
+                return None
             if self._mg_stuck > self.n_ticks // 2:
                 print("[merge] no progress for a long run -> disabling (not a merge game)", flush=True)
                 self._mg_reset()
@@ -9808,6 +10469,50 @@ class ExploratoryDriver:
     # perception coordinate frame.  (Verified on sp80: only scale 1 selects.)
     CLICK_PIXEL_SCALE = 1
 
+    def _sanitize_numeric_click(self, payload: str) -> str:
+        """Make a raw ``CLICK:x,y`` (col,row in tick space) safe and substrate-grounded:
+          (a) if it is outside the tick grid it is almost certainly UPSCALED-IMAGE PIXEL
+              coords the actor read by eye -> divide by the perception upscale to recover
+              tick coords;
+          (b) clamp into the grid so it can never become a silent out-of-bounds no-op;
+          (c) if the cell lands inside a MEASURED entity footprint, snap to that entity's
+              centroid so the substrate -- not the actor's eyeball -- owns the exact click
+              (containment only; no distance threshold).
+        The actor should prefer ``CLICK:<entity_name>``; this only guards the raw path."""
+        try:
+            sx, sy = payload.split(",")
+            cx, cy = int(float(sx)), int(float(sy))
+        except Exception:
+            return "CLICK:" + payload
+        n = int(getattr(self, "n_ticks", 64) or 64)
+        up = int(getattr(self, "upscale", 1) or 1)
+        if up > 1 and (cx >= n or cy >= n or cx < 0 or cy < 0):      # (a) pixel -> tick
+            cx, cy = cx // up, cy // up
+        cx = max(0, min(n - 1, cx)); cy = max(0, min(n - 1, cy))     # (b) clamp
+        snapped = self._snap_click_to_entity(cx, cy)                 # (c) containment-snap
+        if snapped is not None:
+            if (cx, cy) != snapped:
+                print(f"  [driver] raw click {payload!r} -> snapped to measured "
+                      f"entity centroid {snapped[0]},{snapped[1]}")
+            cx, cy = snapped
+        return f"CLICK:{cx},{cy}"
+
+    def _snap_click_to_entity(self, col: int, row: int):
+        """If (col,row) falls inside a measured entity's bbox (tick coords), return that
+        entity's centroid as (col,row).  Picks the SMALLEST containing entity (most
+        specific).  Containment-only -> no magic distance threshold."""
+        best = None
+        for rec in getattr(getattr(self, "world", None), "entities", {}).values():
+            bb = getattr(rec, "current_bbox", None)
+            if not bb:
+                continue
+            r0, c0, r1, c1 = bb
+            if r0 <= row <= r1 and c0 <= col <= c1:
+                area = (r1 - r0 + 1) * (c1 - c0 + 1)
+                if best is None or area < best[0]:
+                    best = (area, ((c0 + c1) // 2, (r0 + r1) // 2))
+        return best[1] if best else None
+
     def _resolve_action(self, action: str) -> str:
         """Translate VLM strategy-layer action strings into the
         form the GameAdapter expects.  Specifically: turn
@@ -9820,10 +10525,12 @@ class ExploratoryDriver:
         if not action.startswith("CLICK:"):
             return action
         payload = action[len("CLICK:"):]
-        # Already in px,py form? Pass through.
+        # Already in px,py form?  A raw numeric click is MEASUREMENT the VLM should not
+        # be supplying by eye -- guard it instead of passing an unchecked coordinate to
+        # a silent out-of-bounds no-op (see CLICK_PIXEL_SCALE note above).
         if "," in payload and payload.replace(",", "").replace(
             " ", "").replace("-", "").isdigit():
-            return action
+            return self._sanitize_numeric_click(payload)
         # DECLARED random-floor click (explicit exploratory intent): resolve to a cell
         # NOT covered by any structural foreground entity -- never modal-colour keyed,
         # never snapped to an entity.  Lets a probe (or the VLM) say "click empty floor"

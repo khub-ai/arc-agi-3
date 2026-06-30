@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import random
 import sys
+import time
 from pathlib import Path
 
 from _compat import Agent, GameAction, GameState
@@ -87,10 +88,14 @@ class CosAgent(Agent):
     """Kaggle wrapper: framework Agent -> CosPlayer. Needs the agents framework
     (only available where it's installed); for local runs use CosPlayer."""
 
-    MAX_ACTIONS = 8000
+    MAX_ACTIONS = 8000   # outer framework cap; overridable via COS_MAX_ACTIONS
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Outer action cap from config. The per-game TIME deadline in is_done()
+        # is the real breadth-first bound; this is only a backstop.
+        self.MAX_ACTIONS = int(os.environ.get("COS_MAX_ACTIONS",
+                                              type(self).MAX_ACTIONS))
         # Pass the per-sub-level step budgets + the real action_space through to
         # COS from the framework env (budget-pressure scheduler + the adapter's
         # action-vocabulary filter).
@@ -108,6 +113,16 @@ class CosAgent(Agent):
                                  baseline_actions=ba, action_space=asp)
 
     def is_done(self, frames, latest_frame) -> bool:
+        # Session governor: yield this game once its per-game deadline passes, so
+        # the run stays breadth-first within the wall-clock budget. Agent.main then
+        # exits and the bridge's COS thread blocks on its frame channel (no GPU).
+        dl = os.environ.get("COS_GAME_DEADLINE_EPOCH")
+        if dl:
+            try:
+                if time.time() >= float(dl):
+                    return True
+            except (TypeError, ValueError):
+                pass
         return self._player.is_done(frames, latest_frame)
 
     def choose_action(self, frames, latest_frame) -> GameAction:

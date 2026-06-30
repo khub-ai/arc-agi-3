@@ -63,7 +63,7 @@ os.environ.setdefault("COS_WORKDIR", "/kaggle/working/cos_run")
 # Model endpoint: a local OpenAI-compatible server (started by the notebook's
 # serve cell -- a transformers shim, since vLLM isn't on the Kaggle image).
 # Swappable via QWEN_MODEL_SLUG -- vllm/<host>/<name> routes to the OpenAI endpoint.
-os.environ.setdefault("QWEN_MODEL_SLUG", "vllm/127.0.0.1:8000/qwen3-vl-8b")
+os.environ.setdefault("QWEN_MODEL_SLUG", "vllm/127.0.0.1:8000/qwen3-vl-32b")
 
 # Route vllm/... slugs to the local endpoint, then seed the general (Tier-0) KB.
 import vllm_backend            # noqa: E402

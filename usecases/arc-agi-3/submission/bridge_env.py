@@ -38,9 +38,18 @@ def to_game_action(action, data: Optional[dict] = None) -> GameAction:
         s = str(getattr(action, "value", action)).upper()
         if "RESET" in s:
             return GameAction.RESET
-        m = re.search(r"([1-7])", s)
-        ga = _BY_NAME.get(f"ACTION{m.group(1)}" if m else "ACTION1",
-                          GameAction.ACTION1)
+        # A "CLICK:x,y" string must map to ACTION6 with its coords -- NOT be fed to
+        # the digit search below, where re.search([1-7]) would grab the first digit
+        # of the coordinate (e.g. CLICK:30,46 -> "3" -> ACTION3) and drop the click.
+        if s.startswith("CLICK"):
+            ga = GameAction.ACTION6
+            mxy = re.search(r"(\d+)\s*,\s*(\d+)", s)
+            if mxy and not (isinstance(data, dict) and "x" in data):
+                data = {"x": int(mxy.group(1)), "y": int(mxy.group(2))}
+        else:
+            m = re.search(r"([1-7])", s)
+            ga = _BY_NAME.get(f"ACTION{m.group(1)}" if m else "ACTION1",
+                              GameAction.ACTION1)
     if ga.is_complex():
         x, y = 32, 32
         if isinstance(data, dict):
@@ -107,5 +116,24 @@ class BridgeEnv:
         return self._ch.cos_wait_obs()
 
     def step(self, action, data: Optional[dict] = None, *a, **kw):
-        self._ch.cos_emit(to_game_action(action, data))
+        self._ch.cos_emit(self._supported(to_game_action(action, data)))
         return self._ch.cos_wait_obs()
+
+    def _supported(self, ga):
+        """Never emit an action the game's action_space lacks -- the SDK rejects it
+        with a hard ValueError that crashes the whole game (e.g. CLICK/ACTION6 on a
+        directional game like ls20). Substitute a supported, non-terminal action and
+        log loudly (the decision logic SHOULD filter to the action_space upstream)."""
+        import sys
+        sp = getattr(self, "action_space", None)
+        if not sp:
+            return ga                                  # unknown space -> can't guard
+        names = {getattr(a, "name", str(a)) for a in sp}
+        if ga.name in names or ga.name == "RESET":     # RESET is always valid
+            return ga
+        sub = next((a for a in sp if getattr(a, "name", "") not in ("NONE", "RESET")),
+                   None) or sp[0]
+        print(f"[bridge] GUARD: {ga.name} not in action_space {sorted(names)} -> "
+              f"substituting {getattr(sub, 'name', sub)} (decision logic should filter)",
+              file=sys.stderr, flush=True)
+        return sub

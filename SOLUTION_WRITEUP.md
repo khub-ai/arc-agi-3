@@ -13,7 +13,7 @@ game-agnostic agent that approaches each game the way a general problem-solver
 would: it *perceives* the frame into structural facts, *builds a world model* of
 the game's rules from what its actions actually do, and *acts* by means-ends
 planning toward the win condition, exploring to reduce uncertainty when no path
-is known. A local, frozen, open-weights **Qwen3-VL-8B-Instruct** serves as the strategy
+is known. A local, frozen, open-weights **Qwen3-VL-32B-Instruct** serves as the strategy
 vision-language model. No game-specific code and no per-game memory are used.
 
 **Result:** `[SCORE]`% on the ARC-AGI-3 evaluation (`[N]` of `[M]` games advanced;
@@ -64,21 +64,24 @@ retries are free, which suits COS's deliberate per-turn reasoning.
 
 ## Model and compute environment
 
-- **Model:** **Qwen3-VL-8B-Instruct** (frozen, open-weights, Apache-2.0), served
-  locally in **fp16** (`device_map="auto"` across the GPUs) behind a small
-  `transformers` OpenAI-compatible shim. vLLM is not on the Kaggle image, and the
-  8B model fits the 2× T4 (~17 GB) **without quantization**. Swappable via a slug.
+- **Model:** **Qwen3-VL-32B-Instruct** (frozen, open-weights, Apache-2.0), served
+  locally in **bf16** (`device_map="auto"`) behind a small `transformers`
+  OpenAI-compatible shim. vLLM is not on the Kaggle image, and the model fits a
+  single RTX PRO 6000 (Blackwell, 96 GB; ~64 GB used) **without quantization**.
+  Swappable via a slug.
 - **No training or fine-tuning is performed.** The "training code" deliverable is
   therefore N/A; the deliverable is the inference/agent code in this repository.
   All adaptation is *within-run* learning, not weight updates.
-- **Hardware / limits:** Kaggle GPU accelerator (T4 ×2), 12-hour runtime, internet off.
+- **Hardware / limits:** Kaggle GPU accelerator (a single RTX PRO 6000, Blackwell,
+  96 GB), 12-hour runtime, internet off.
 - **Dependencies:** the ARC SDK (`arc-agi` / `arcengine`) and `flask` install from
   the competition's offline wheels; `torch` / `transformers` / `accelerate` are
   already on the Kaggle image; the agent code is the attached `cos-code` dataset.
 
 ## Reproduction
 
-The full mechanism is documented in
+The Milestone #1 submission is the commit tagged **`v0.1-milestone1`**. The full
+mechanism is documented in
 [`KAGGLE_SUBMISSION.md`](usecases/arc-agi-3/submission/KAGGLE_SUBMISSION.md);
 the build/submit scaffold is in
 [`kaggle/`](usecases/arc-agi-3/submission/kaggle/).
@@ -86,8 +89,8 @@ the build/submit scaffold is in
 1. Build the agent slice: `python usecases/arc-agi-3/submission/build_package.py`
    → `dist/cos-code` (passes a compliance + leak gate), and upload it as the
    private Kaggle Dataset `cos-code`.
-2. Attach the **Qwen3-VL-8B-Instruct** Kaggle Model (`qwen-lm/qwen-3-vl`,
-   `transformers/8b-instruct`).
+2. Attach the **Qwen3-VL-32B-Instruct** Kaggle Model (`qwen-lm/qwen-3-vl`,
+   `transformers/32b-instruct`).
 3. In `kaggle/notebooks/kernel-metadata.json` set your username and the model
    slug; put your Kaggle token at `kaggle/.kaggle/access_token`.
 4. `cd kaggle && make submit` — generates `submission.ipynb` (install SDK from

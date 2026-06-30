@@ -21,17 +21,22 @@ from pathlib import Path
 from textwrap import dedent
 
 # ─────────────────────────────────────────────────────────────────────────────
-# KAGGLE ACCELERATOR.  Qwen3-VL-8B in fp16 (~17 GB) fits across "t4" = T4 x2
-# (32 GB total) with NO quantization. The serve cell loads it with transformers
-# (device_map=auto). "rtx6000" = 24 GB single is faster but burns quota faster.
+# KAGGLE ACCELERATOR.  *** Qwen3-VL-32B needs ~64 GB bf16 -> the 96 GB RTX PRO 6000
+# (Blackwell). *** The GPU TYPE is set in kernel-metadata.json via
+#   "machine_shape": "NvidiaRtxPro6000"
+# (proven: a notebook that ran the 32B on it had exactly that; its .ipynb accelerator
+# read "none", so the .ipynb field below is informational -- kernel-metadata's
+# machine_shape is what the kaggle CLI push applies). VERIFY after pushing the kernel
+# (pull it back / the COS_MAX_GAMES=1 smoke run) that the scored rerun got the 96 GB GPU.
 # ─────────────────────────────────────────────────────────────────────────────
-ACCELERATOR = "t4"
+ACCELERATOR = "t4"   # .ipynb field only; the real GPU = kernel-metadata machine_shape (above)
 
 _ACCELERATORS = {
     "cpu":     {"name": "none",            "gpu": False},
     "t4":      {"name": "nvidiaTeslaT4",   "gpu": True},
     "p100":    {"name": "nvidiaTeslaP100", "gpu": True},
-    "rtx6000": {"name": "nvidiaRtx6000",   "gpu": True},
+    "rtx6000": {"name": "nvidiaRtx6000",   "gpu": True},   # OLD 24 GB RTX 6000 -- NOT the Blackwell
+    # "rtxpro6000": {"name": "<EXACT STRING>", "gpu": True},  # 96 GB Blackwell -- fill from a notebook's metadata
 }
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,7 +84,7 @@ def build() -> dict:
 
     serve_cell = code_cell(dedent(
         """\
-        # Serve the attached VLM (Qwen3-VL-8B) on a local OpenAI-compatible endpoint
+        # Serve the attached VLM (Qwen3-VL-32B) on a local OpenAI-compatible endpoint
         # via transformers (fp16, device_map=auto across the GPUs) -- vLLM is not on
         # the Kaggle image. Competition-rerun only (skipped on commit).
         import os, glob, subprocess, time, urllib.request
@@ -92,11 +97,11 @@ def build() -> dict:
                         model_dir = d; break
                 except Exception:
                     pass
-            assert model_dir, 'attach the Qwen3-VL-8B-Instruct Kaggle Model'
+            assert model_dir, 'attach the Qwen3-VL-32B-Instruct Kaggle Model'
             print('serving model:', model_dir, flush=True)
             logf = open('/kaggle/working/serve_vlm.log', 'w')
             subprocess.Popen(['python', '/tmp/serve_vlm.py', '--model', model_dir,
-                              '--port', '8000', '--name', 'qwen3-vl-8b'],
+                              '--port', '8000', '--name', 'qwen3-vl-32b'],
                              stdout=logf, stderr=subprocess.STDOUT)
             up = False
             for _ in range(180):          # up to ~15 min for the model to load
@@ -145,6 +150,20 @@ def build() -> dict:
             'random': Random,
             'myagent': MyAgent,
         }
+
+        # Session governor: swap the stock parallel-all-games Swarm for the
+        # sequential, time-budgeted, crash-tolerant one (always writes a submission).
+        import sys as _sys, glob as _glob
+        for _d in _glob.glob('/kaggle/input/**/usecases/arc-agi-3/submission', recursive=True):
+            if _d not in _sys.path:
+                _sys.path.insert(0, _d)
+        try:
+            from session_governor import GovernedSwarm as _GS
+            if _GS is not None:
+                Swarm = _GS
+                print('[governor] using GovernedSwarm (sequential, budgeted)')
+        except Exception as _e:
+            print('[governor] stock Swarm (governor unavailable):', _e)
         \"\"\")
 
             # Point the framework at the gateway sidecar.
@@ -160,8 +179,23 @@ def build() -> dict:
         \"\"\")
 
             # Run it. The gateway records every action and emits submission.parquet.
+            # COS_SESSION_BUDGET_S: total wall-clock for ALL games (8 h, under the
+            # scored-session limit); COS_SESSION_RESERVE_S: held back to flush the
+            # submission. The governor splits the rest breadth-first across games
+            # (per-game time deadline via COS_GAME_DEADLINE_EPOCH).
+            # COS_GAME_TRIAGE=1: Stream A's driver-side quality abort -- the agreed
+            # mid-game abort path; we don't add a second one. COS_TRIAGE_MAX_TURNS=400
+            # lifts game_triage's blunt 80-turn cap (which would cut a FAST, PROGRESSING
+            # game) so the active cuts are TIME (governor) + STALL/CLAIM (quality).
+            # COS_ACTION_SWEEP_MAX=3: cap the early global-action sweep (it ate ~5 turns
+            # on slow ka59) so a click-primary game isn't starved under a tight budget.
+            # SMOKE / rerun-GPU check: prepend `COS_MAX_GAMES=1 COS_SESSION_BUDGET_S=1800`
+            # to the env below to play ONE game -- cheaply confirms the rerun GPU fits the
+            # model AND the gateway emits a parquet, before committing to the full 25-game run.
             !cd /kaggle/working/ARC-AGI-3-Agents && \\
                 MPLBACKEND=agg \\
+                COS_SESSION_BUDGET_S=28800 COS_SESSION_RESERVE_S=900 \\
+                COS_GAME_TRIAGE=1 COS_TRIAGE_MAX_TURNS=400 COS_ACTION_SWEEP_MAX=3 \\
                 python main.py --agent myagent
         """
     ))

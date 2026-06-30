@@ -17,6 +17,7 @@
     "arc-prize-2026-arc-agi-3"
   ],
   "model_sources": [
-    "qwen-lm/qwen-3-vl/transformers/8b-instruct/1"
-  ]
+    "qwen-lm/qwen-3-vl/transformers/32b-instruct/1"
+  ],
+  "machine_shape": "NvidiaRtxPro6000"
 }

@@ -29,8 +29,8 @@ class BridgeSession:
                  run_kwargs: Optional[dict] = None,
                  baseline_actions=None,
                  action_space=None,
-                 turn_timeout_s: Optional[float] = 600.0,
-                 start_timeout_s: Optional[float] = 1800.0):
+                 turn_timeout_s: Optional[float] = None,
+                 start_timeout_s: Optional[float] = None):
         self.game_id = game_id
         self.model_slug = model_slug
         self.baseline_actions = list(baseline_actions or [])
@@ -43,13 +43,18 @@ class BridgeSession:
         # cost_cap_usd must be POSITIVE: the check is `spent >= cap`, so 0.0
         # stops instantly. The local Qwen is free (spend stays $0), so a large
         # cap effectively means "no cost limit".
-        self.run_kwargs = {"max_turns": 400, "max_rounds": 1,
-                           "record_solution": False, "replay_solved": False,
-                           "cost_cap_usd": 1_000_000.0}
+        self.run_kwargs = {
+            "max_turns": int(os.environ.get("COS_MAX_TURNS_PER_GAME", 400)),
+            "max_rounds": 1, "record_solution": False, "replay_solved": False,
+            "cost_cap_usd": 1_000_000.0}
         if run_kwargs:
             self.run_kwargs.update(run_kwargs)
-        self.turn_timeout_s = turn_timeout_s
-        self.start_timeout_s = start_timeout_s
+        # Harness-side waits: default preserved (600 / 1800 s) but env-overridable
+        # so the session profile can tighten stalls without touching the engine.
+        self.turn_timeout_s = (turn_timeout_s if turn_timeout_s is not None
+                               else float(os.environ.get("COS_TURN_TIMEOUT_S", 600.0)))
+        self.start_timeout_s = (start_timeout_s if start_timeout_s is not None
+                                else float(os.environ.get("COS_START_TIMEOUT_S", 1800.0)))
         self.ch = Channel()
         self._thread: Optional[threading.Thread] = None
         self._first = True
@@ -65,6 +70,20 @@ class BridgeSession:
             from world_knowledge import WorldKnowledge
             from exploratory_driver import ExploratoryDriver
             import cos_responder
+
+            # Route vllm/<host:port>/<name> slugs (the local serve_vlm) to the local
+            # OpenAI endpoint. The submission entry (my_agent) installs this; the
+            # bench/local path doesn't, so do it here too (idempotent) -- otherwise
+            # backends has no local route, every VLM call falls back, and COS plays
+            # BLIND on substrate-only (0 real perception).
+            try:
+                _sub = str(Path(__file__).resolve().parent)
+                if _sub not in sys.path:
+                    sys.path.insert(0, _sub)
+                import vllm_backend
+                vllm_backend.install()
+            except Exception as _e:                       # noqa: BLE001
+                print(f"[bridge] vllm_backend.install skipped: {_e!r}")
 
             bridge = BridgeEnv(self.ch, baseline_actions=self.baseline_actions,
                                action_space=self.action_space)
@@ -86,8 +105,11 @@ class BridgeSession:
             game = LiveHarnessAdapter(self.game_id, level=0, env=bridge)
             world = WorldKnowledge(game_id=self.game_id, level=0)
             world.win_state = "playing"
-            driver = ExploratoryDriver(game, world, work, timeout_s=600,
-                                       vlm_timeout_s=600, use_strategy=True, use_planner=True)
+            # Per-VLM-call timeout: default 600 s, env-overridable so the session
+            # profile can tighten a stalled call without an engine edit.
+            _vlm_to = float(os.environ.get("COS_VLM_TIMEOUT_S", 600))
+            driver = ExploratoryDriver(game, world, work, timeout_s=_vlm_to,
+                                       vlm_timeout_s=_vlm_to, use_strategy=True, use_planner=True)
             driver.run(max_turns=int(self.run_kwargs.get("max_turns", 400)), start_level=0)
             self._stop.set()
         except Exception as exc:              # never crash the harness

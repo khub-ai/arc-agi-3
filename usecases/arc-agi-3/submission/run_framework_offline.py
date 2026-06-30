@@ -29,14 +29,20 @@ os.environ["COS_STRICT"] = "1"
 os.environ["ARC_AGI_3_REPO"] = str(REPO)
 os.environ["OPERATION_MODE"] = "offline"
 os.environ.setdefault("ARC_API_KEY", "")          # offline; no API calls
-os.environ["COS_WORKDIR"] = str(SUB / ".run")
+# Workdir must be WRITABLE. On Kaggle the code is a read-only /kaggle/input mount,
+# so writing under SUB/.run throws "Read-only file system"; default to
+# /kaggle/working there. Locally use SUB/.run. Override with COS_RUN_BASE.
+_RUN_BASE = (os.environ.get("COS_RUN_BASE")
+             or ("/kaggle/working/cosrun" if os.path.isdir("/kaggle/working")
+                 else str(SUB / ".run")))
+os.environ["COS_WORKDIR"] = _RUN_BASE
 # KB mode (see COLD_SOLVE_STATUS.md). COLD (default) = competition-faithful: a
 # fresh KB seeded with general Tier-0 only, no per-game prior. WARM = the
 # accumulated .tmp/kb (per-game KB present) for a cold-vs-warm A/B.
 _WARM = "--warm-kb" in sys.argv
 os.environ["COS_KB_ROOT"] = (str(REPO / ".tmp" / "kb") if _WARM
-                             else str(SUB / ".run" / "fw_kb"))
-os.environ["COS_SESSION_DIR"] = str(SUB / ".run" / "fw_session")
+                             else os.path.join(_RUN_BASE, "fw_kb"))
+os.environ["COS_SESSION_DIR"] = os.path.join(_RUN_BASE, "fw_session")
 os.environ.setdefault("QWEN_MODEL_SLUG",
                       "ollama/127.0.0.1:11434/qwen3-vl:8b-instruct")
 for _p in (str(SUB), str(FRAMEWORK),

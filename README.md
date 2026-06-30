@@ -40,7 +40,7 @@ ARC-AGI-3 harness ──(per-turn choose_action)──▶ CosAgent
                   ExploratoryDriver  (perception · world model · means-ends · exploration · strategy)
                                                   │   file-handoff prompts
                                                   ▼
-                  cos_responder ──▶ local model (Qwen3-VL-8B via transformers) — offline
+                  cos_responder ──▶ local model (Qwen3-VL-32B via transformers) — offline
 ```
 
 Everything runs **offline**: the model is served locally (no internet), and the
@@ -71,9 +71,9 @@ The agent is `MyAgent(CosAgent)` in `kaggle/agent/my_agent.py`;
 competition re‑run that notebook:
 
 1. installs the SDK from the competition's offline wheels;
-2. serves `Qwen3-VL-8B-Instruct` locally in fp16 via a small `transformers`
+2. serves `Qwen3-VL-32B-Instruct` locally in bf16 via a small `transformers`
    OpenAI‑compatible shim (`serve_vlm.py`) — vLLM isn't on the Kaggle image, and
-   the 8B model fits the 2× T4 without quantization;
+   the model fits a single RTX PRO 6000 (Blackwell, 96 GB) without quantization;
 3. seeds a fresh, general‑only KB and puts the COS slice on `sys.path`;
 4. runs the framework's `main.py --agent myagent` against the competition's
    `gateway:8001` sidecar, which serves the hidden games and records the play
@@ -94,6 +94,28 @@ python usecases/arc-agi-3/submission/run_framework_offline.py <game-id>
 plays one game through the real framework loop offline (fresh, seeded KB by
 default; add `--warm-kb` to reuse accumulated knowledge for a cold‑vs‑warm
 comparison).
+
+## ARC Prize 2026 — Milestone #1 (June 30) reproduction
+
+The Milestone #1 submission is the commit tagged **`v0.1-milestone1`** (immutable):
+
+```
+git checkout v0.1-milestone1
+```
+
+- **Model:** Qwen3‑VL‑32B‑Instruct (Kaggle Models `qwen-lm/qwen-3-vl`, variation
+  `transformers/32b-instruct`), served locally and offline by `serve_vlm.py` in
+  **bf16, no quantization**.
+- **Accelerator:** a single **RTX PRO 6000** (Blackwell, 96 GB), pinned in the
+  kernel metadata via `machine_shape: "NvidiaRtxPro6000"`.
+
+Reproduce via the competition path above: build the notebook from
+`usecases/arc-agi-3/submission/kaggle/`, attach the competition data, this code,
+and the Qwen3‑VL‑32B‑Instruct model, then **Save & Run All**. Kaggle's re‑run plays
+the hidden games against the `gateway:8001` sidecar, which records every action and
+emits `submission.parquet` (the agent does not write predictions itself). Full
+mechanism + scoring (RHAE):
+[`KAGGLE_SUBMISSION.md`](usecases/arc-agi-3/submission/KAGGLE_SUBMISSION.md).
 
 ## Knowledge & compliance
 
