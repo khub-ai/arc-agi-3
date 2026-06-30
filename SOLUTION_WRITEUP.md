@@ -16,12 +16,15 @@ planning toward the win condition, exploring to reduce uncertainty when no path
 is known. A local, frozen, open-weights **Qwen3-VL-32B-Instruct** serves as the strategy
 vision-language model. No game-specific code and no per-game memory are used.
 
-**Result (Milestone #1):** **0.00** — the scored rerun finished with Kaggle status
-**`Succeeded`** and produced a valid submission (the pipeline ran end-to-end without
-error), but credited **0 completed levels** (2026-06-30, notebook version 2). RHAE
-scores only *completed* levels, so a working agent that does not yet close an unseen
-game **cold** — from a clean knowledge base, within a single run — scores 0. That
-cold-solve capability is the active gap (see "What worked, what didn't").
+**Result (Milestone #1):** **0.00** (2026-06-30, notebook version 2). The scored
+rerun reported Kaggle status **`Succeeded`** and produced a valid submission, but
+credited **0 completed levels**. The rerun's short runtime (~30 minutes) is less
+than a full 25-game, model-serving run would take, so we are first verifying whether
+the vision model actually loaded in the scored environment (a GPU / serve question)
+before attributing the 0 to the agent's ability. If the model served, the relevant
+gap is cold-solving an unseen game within a single run (see "What worked, what
+didn't"); if it did not, the 0 reflects a serve failure, not the agent. Diagnosis
+in progress.
 
 ## Approach
 
